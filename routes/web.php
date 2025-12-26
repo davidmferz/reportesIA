@@ -3,9 +3,15 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
-    return view('welcome');
+    // Si el usuario está autenticado, redirigir al dashboard
+    if (Auth::check()) {
+        return redirect('/dashboard');
+    }
+    // Si no está autenticado, redirigir al login
+    return redirect('/login');
 });
 
 Route::get('/dashboard', function () {

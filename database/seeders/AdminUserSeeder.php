@@ -14,16 +14,17 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         User::firstOrCreate(
-            ['email' => 'admin@reportesia.com'],
+            ['email' => 'david.melchor@blmovil.com'],
             [
-                'name' => 'Administrador',
-                'password' => Hash::make('password'),
+                'name' => 'David Melchor',
+                'password' => Hash::make('localhost'),
                 'is_admin' => true,
+                'email_verified_at' => now(),
             ]
         );
 
         $this->command->info('Usuario administrador creado exitosamente');
-        $this->command->info('Email: admin@reportesia.com');
-        $this->command->info('Password: password');
+        $this->command->info('Email: david.melchor@blmovil.com');
+        $this->command->info('Password: localhost');
     }
 }

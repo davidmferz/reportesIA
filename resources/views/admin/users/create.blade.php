@@ -1,63 +1,147 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Crear Usuario
-        </h2>
+        <div class="flex items-center">
+            <a href="{{ route('admin.users.index') }}" class="mr-4 transition-colors" style="color: #A89F94;" onmouseover="this.style.color='#26221F'" onmouseout="this.style.color='#A89F94'">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </a>
+            <div>
+                <h2 class="font-bold text-2xl leading-tight tracking-tight" style="color: #26221F;">
+                    Crear Nuevo Usuario
+                </h2>
+                <p class="mt-1 text-sm" style="color: #A89F94;">
+                    Completa el formulario para agregar un nuevo usuario al sistema
+                </p>
+            </div>
+        </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900 dark:text-gray-100">
-                    <form method="POST" action="{{ route('admin.users.store') }}">
+    <div class="py-8">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color: #FFFFFF; border: 1px solid #A89F94;">
+                <div class="p-8">
+                    <form method="POST" action="{{ route('admin.users.store') }}" class="space-y-6">
                         @csrf
 
-                        <div class="mb-4">
-                            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre</label>
+                        <!-- Nombre -->
+                        <div>
+                            <label for="name" class="flex items-center text-sm font-semibold mb-2" style="color: #26221F;">
+                                <svg class="w-4 h-4 mr-2" style="color: #A89F94;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                </svg>
+                                Nombre Completo
+                            </label>
                             <input type="text" name="name" id="name" value="{{ old('name') }}" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                   class="w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 outline-none font-medium" style="border-color: #A89F94; background-color: #F5F2ED; color: #26221F;"
+                                   onfocus="this.style.borderColor='#26221F'; this.style.boxShadow='0 0 0 4px rgba(38, 34, 31, 0.1)'"
+                                   onblur="this.style.borderColor='#A89F94'; this.style.boxShadow='none'"
+                                   placeholder="Ingresa el nombre completo del usuario">
                             @error('name')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                <p class="mt-2 text-sm flex items-center" style="color: #26221F;">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ $message }}
+                                </p>
                             @enderror
                         </div>
 
-                        <div class="mb-4">
-                            <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                        <!-- Email -->
+                        <div>
+                            <label for="email" class="flex items-center text-sm font-semibold mb-2" style="color: #26221F;">
+                                <svg class="w-4 h-4 mr-2" style="color: #A89F94;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                                Correo Electrónico
+                            </label>
                             <input type="email" name="email" id="email" value="{{ old('email') }}" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                   class="w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 outline-none font-medium" style="border-color: #A89F94; background-color: #F5F2ED; color: #26221F;"
+                                   onfocus="this.style.borderColor='#26221F'; this.style.boxShadow='0 0 0 4px rgba(38, 34, 31, 0.1)'"
+                                   onblur="this.style.borderColor='#A89F94'; this.style.boxShadow='none'"
+                                   placeholder="usuario@ejemplo.com">
                             @error('email')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                <p class="mt-2 text-sm flex items-center" style="color: #26221F;">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ $message }}
+                                </p>
                             @enderror
                         </div>
 
-                        <div class="mb-4">
-                            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contraseña</label>
+                        <!-- Contraseña -->
+                        <div>
+                            <label for="password" class="flex items-center text-sm font-semibold mb-2" style="color: #26221F;">
+                                <svg class="w-4 h-4 mr-2" style="color: #A89F94;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                </svg>
+                                Contraseña
+                            </label>
                             <input type="password" name="password" id="password" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                   class="w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 outline-none font-medium" style="border-color: #A89F94; background-color: #F5F2ED; color: #26221F;"
+                                   onfocus="this.style.borderColor='#26221F'; this.style.boxShadow='0 0 0 4px rgba(38, 34, 31, 0.1)'"
+                                   onblur="this.style.borderColor='#A89F94'; this.style.boxShadow='none'"
+                                   placeholder="Mínimo 8 caracteres">
                             @error('password')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                <p class="mt-2 text-sm flex items-center" style="color: #26221F;">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ $message }}
+                                </p>
                             @enderror
                         </div>
 
-                        <div class="mb-4">
-                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirmar Contraseña</label>
+                        <!-- Confirmar Contraseña -->
+                        <div>
+                            <label for="password_confirmation" class="flex items-center text-sm font-semibold mb-2" style="color: #26221F;">
+                                <svg class="w-4 h-4 mr-2" style="color: #A89F94;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Confirmar Contraseña
+                            </label>
                             <input type="password" name="password_confirmation" id="password_confirmation" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                   class="w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 outline-none font-medium" style="border-color: #A89F94; background-color: #F5F2ED; color: #26221F;"
+                                   onfocus="this.style.borderColor='#26221F'; this.style.boxShadow='0 0 0 4px rgba(38, 34, 31, 0.1)'"
+                                   onblur="this.style.borderColor='#A89F94'; this.style.boxShadow='none'"
+                                   placeholder="Repite la contraseña">
                         </div>
 
-                        <div class="mb-4">
-                            <label class="flex items-center">
-                                <input type="checkbox" name="is_admin" value="1" {{ old('is_admin') ? 'checked' : '' }}
-                                       class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Es Administrador</span>
+                        <!-- Es Administrador -->
+                        <div class="pt-4" style="border-top: 1px solid #A89F94;">
+                            <label class="flex items-start cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" name="is_admin" value="1" {{ old('is_admin') ? 'checked' : '' }}
+                                           class="w-5 h-5 rounded-lg border-2 transition-all" style="border-color: #A89F94; color: #26221F;"
+                                           onfocus="this.style.boxShadow='0 0 0 4px rgba(38, 34, 31, 0.1)'"
+                                           onblur="this.style.boxShadow='none'">
+                                </div>
+                                <div class="ml-3">
+                                    <span class="text-sm font-semibold transition-colors" style="color: #26221F;">
+                                        Otorgar privilegios de administrador
+                                    </span>
+                                    <p class="text-xs mt-1" style="color: #A89F94;">
+                                        Los administradores tienen acceso completo al sistema y pueden gestionar usuarios
+                                    </p>
+                                </div>
                             </label>
                         </div>
 
-                        <div class="flex items-center justify-end space-x-4">
-                            <a href="{{ route('admin.users.index') }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                        <!-- Botones de Acción -->
+                        <div class="flex items-center justify-end gap-4 pt-6" style="border-top: 1px solid #A89F94;">
+                            <a href="{{ route('admin.users.index') }}"
+                               class="inline-flex items-center px-6 py-3 font-semibold rounded-xl transition-all duration-150 shadow hover:shadow-lg" style="background-color: #F5F2ED; color: #26221F; border: 1px solid #A89F94;">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
                                 Cancelar
                             </a>
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            <button type="submit"
+                                    class="inline-flex items-center px-6 py-3 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5" style="background-color: #26221F; color: #FFFFFF;">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
                                 Crear Usuario
                             </button>
                         </div>
