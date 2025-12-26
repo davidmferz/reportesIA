@@ -2,10 +2,26 @@
 
 ## Pasos para hacer el deploy en el servidor
 
-### 1. Subir el archivo de configuración de Apache
+### 1. Configurar Virtual Host en Apache
 
+**Opción A: Agregar al archivo existente (Recomendado si ya tienes otros sitios)**
 ```bash
-# En tu servidor, copia el archivo reportesIA.conf a sites-available
+# Editar el archivo donde están todos tus sitios
+sudo nano /etc/apache2/sites-enabled/000-default.conf
+
+# Agregar al final del archivo la configuración del VirtualHost
+# (Ver archivo reportesIA.conf en este proyecto como referencia)
+
+# Verificar la configuración
+sudo apache2ctl configtest
+
+# Si todo está OK, recargar Apache
+sudo systemctl reload apache2
+```
+
+**Opción B: Crear archivo separado**
+```bash
+# Copiar el archivo reportesIA.conf a sites-available
 sudo cp reportesIA.conf /etc/apache2/sites-available/
 
 # Habilitar el sitio
@@ -22,7 +38,7 @@ sudo systemctl reload apache2
 
 Antes de continuar, asegúrate de crear el registro DNS:
 - **Tipo**: A o CNAME
-- **Host**: reportesia
+- **Host**: mfg
 - **Apunta a**: La IP de tu servidor o blmovil.com
 
 ### 3. Configurar permisos de directorios
@@ -68,12 +84,26 @@ php8.2 -v
 # - DB_PASSWORD
 ```
 
-### 6. Ejecutar migraciones y optimizaciones
+### 6. Ejecutar migraciones y seeders
 
 ```bash
 # Ejecutar migraciones
 /usr/bin/php8.2 artisan migrate --force
 
+# Ejecutar seeders (crear usuario administrador)
+/usr/bin/php8.2 artisan db:seed --force
+
+# O ejecutar todo junto (migraciones + seeders)
+/usr/bin/php8.2 artisan migrate --seed --force
+```
+
+**Usuario administrador creado:**
+- Email: david.melchor@blmovil.com
+- Password: localhost
+
+### 7. Optimizaciones y cachés
+
+```bash
 # Limpiar cachés antiguos
 /usr/bin/php8.2 artisan config:clear
 /usr/bin/php8.2 artisan cache:clear
@@ -89,16 +119,20 @@ php8.2 -v
 /usr/bin/php8.2 /usr/local/bin/composer dump-autoload --optimize
 ```
 
-### 7. Verificar instalación
+### 8. Verificar instalación
 
-Visita: https://reportesia.blmovil.com
+Visita: https://mfg.blmovil.com
+
+**Credenciales de acceso:**
+- Email: david.melchor@blmovil.com
+- Password: localhost
 
 ### Solución de problemas comunes
 
 #### Error 500 - Internal Server Error
 ```bash
 # Ver logs de Apache
-sudo tail -f /var/log/apache2/reportesia.blmovil.com-error_log
+sudo tail -f /var/log/apache2/mfg.blmovil.com-error_log
 
 # Ver logs de Laravel
 tail -f /var/www/html/reportesIA/storage/logs/laravel.log
@@ -140,25 +174,33 @@ sudo systemctl restart php8.2-fpm
 # Modo mantenimiento
 /usr/bin/php8.2 artisan down
 /usr/bin/php8.2 artisan up
+
+# Ejecutar seeders específicos
+/usr/bin/php8.2 artisan db:seed --class=AdminUserSeeder --force
+
+# Resetear base de datos (¡CUIDADO! Borra todo)
+/usr/bin/php8.2 artisan migrate:fresh --seed --force
 ```
 
 ## Checklist de Deploy
 
-- [ ] Archivo de configuración Apache copiado y habilitado
-- [ ] DNS configurado (reportesia.blmovil.com)
+- [ ] VirtualHost agregado a Apache (000-default.conf)
+- [ ] DNS configurado (mfg.blmovil.com)
 - [ ] Apache recargado sin errores
 - [ ] Permisos de storage y bootstrap/cache configurados
 - [ ] Dependencias de Composer instaladas con PHP 8.2
 - [ ] Archivo .env configurado correctamente
 - [ ] APP_KEY generada
 - [ ] Migraciones ejecutadas
+- [ ] Seeders ejecutados (usuario admin creado)
 - [ ] Cachés generados
 - [ ] Sitio accesible vía HTTPS
+- [ ] Login funcional con credenciales de admin
 - [ ] Logs sin errores críticos
 
 ## Información del servidor
 
-- **Dominio**: reportesia.blmovil.com
+- **Dominio**: mfg.blmovil.com
 - **Document Root**: /var/www/html/reportesIA/public
 - **PHP Version**: 8.2 (vía PHP-FPM)
 - **Certificados SSL**: Wildcard _.blmovil.com (compartidos)
