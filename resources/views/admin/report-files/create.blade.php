@@ -173,9 +173,14 @@
                     <!-- Botones de acción -->
                     <div class="flex items-center justify-end space-x-3 pt-4 border-t border-hando-border-light dark:border-hando-border-dark">
                         <a href="{{ route('admin.report-files.show', $reportType) }}" :class="{ 'pointer-events-none opacity-50': uploading }">
-                            <x-hando-button variant="secondary" type="button" :disabled="uploading">
+                            <button
+                                type="button"
+                                :disabled="uploading"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-hando shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-hando-primary transition-all duration-150"
+                                @click="window.location.href='{{ route('admin.report-files.show', $reportType) }}'"
+                            >
                                 Cancelar
-                            </x-hando-button>
+                            </button>
                         </a>
                         <button
                             type="submit"
