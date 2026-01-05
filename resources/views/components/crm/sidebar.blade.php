@@ -60,6 +60,16 @@
                         Tipos de Reportes
                     </a>
                 </li>
+                <li>
+                    <a href="{{ route('admin.report-files.index') }}"
+                       class="flex items-center px-3 py-2.5 rounded-hando text-sm font-medium transition-colors duration-150
+                              {{ request()->routeIs('admin.report-files.*') ? 'bg-blue-50 dark:bg-blue-900/20 text-hando-primary border-l-4 border-hando-primary' : 'text-hando-gray-600 dark:text-hando-gray-400 hover:bg-hando-gray-100 dark:hover:bg-hando-gray-700' }}">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        Gestión de Archivos
+                    </a>
+                </li>
             </ul>
         </div>
         @endif

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ReportTypeController;
+use App\Http\Controllers\ReportTypeFileController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -34,6 +35,14 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('report-types', ReportTypeController::class);
+
+    // Rutas para gestión de archivos de tipos de reportes
+    Route::get('report-files', [ReportTypeFileController::class, 'index'])->name('report-files.index');
+    Route::get('report-files/{reportType}', [ReportTypeFileController::class, 'show'])->name('report-files.show');
+    Route::get('report-files/{reportType}/create', [ReportTypeFileController::class, 'create'])->name('report-files.create');
+    Route::post('report-files/{reportType}', [ReportTypeFileController::class, 'store'])->name('report-files.store');
+    Route::get('report-files/file/{file}/download', [ReportTypeFileController::class, 'download'])->name('report-files.download');
+    Route::delete('report-files/file/{file}', [ReportTypeFileController::class, 'destroy'])->name('report-files.destroy');
 });
 
 require __DIR__.'/auth.php';

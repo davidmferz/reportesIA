@@ -1,0 +1,229 @@
+<x-layouts.crm>
+    <x-slot name="header">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="flex items-center space-x-3">
+                    <a href="{{ route('admin.report-files.index') }}" class="text-hando-gray-500 hover:text-hando-gray-700 dark:text-hando-gray-400 dark:hover:text-hando-gray-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <div>
+                        <h1 class="text-2xl font-bold text-hando-text-light dark:text-hando-text-dark">{{ $reportType->nombre }}</h1>
+                        <p class="mt-1 text-sm text-hando-gray-500 dark:text-hando-gray-400">Archivos asociados a este tipo de reporte</p>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ route('admin.report-files.create', $reportType) }}">
+                <x-hando-button variant="primary">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    Subir Archivos
+                </x-hando-button>
+            </a>
+        </div>
+    </x-slot>
+
+    <div class="max-w-full mx-auto">
+        <!-- Indicador del tipo de reporte seleccionado - MEJORADO -->
+        <div class="mb-8 sticky top-0 z-20 pt-4 pb-2" style="background: linear-gradient(to bottom, rgb(249, 250, 251) 0%, rgb(249, 250, 251) 85%, transparent 100%);">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-xl shadow-2xl border-4 border-blue-400 dark:border-blue-500">
+                <div class="p-5">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                        <!-- Lado izquierdo: Tipo de reporte -->
+                        <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0 h-14 w-14 bg-white/30 rounded-xl flex items-center justify-center ring-4 ring-white/20">
+                                <svg class="w-8 h-8 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-blue-100 uppercase tracking-widest">
+                                    📁 TIPO DE REPORTE SELECCIONADO
+                                </p>
+                                <p class="text-2xl lg:text-3xl font-black text-blue-100 leading-tight mt-1">
+                                    {{ $reportType->nombre }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Lado derecho: Badges -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-blue-900/90 text-blue-700 shadow-md">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/>
+                                </svg>
+                                ID: {{ $reportType->id }}
+                            </span>
+                            @if($reportType->files->count() > 0)
+                            <span class="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-green-500 text-blue-900 shadow-md">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                </svg>
+                                {{ $reportType->files->count() }} {{ $reportType->files->count() === 1 ? 'archivo' : 'archivos' }}
+                            </span>
+                            @else
+                            <span class="inline-flex items-center px-4 py-2 rounded-lg text-base font-bold bg-orange-500 text-blue-900 shadow-md">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                Sin archivos
+                            </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if(session('success'))
+        <div class="mb-6 relative overflow-hidden rounded-hando bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 shadow-hando">
+            <div class="flex items-center p-4">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-green-900 dark:text-green-100">
+                        {{ session('success') }}
+                    </p>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 ml-4 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200 transition-colors">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        @endif
+
+        @if(session('error'))
+        <div class="mb-6 relative overflow-hidden rounded-hando bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 shadow-hando">
+            <div class="flex items-center p-4">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-red-900 dark:text-red-100">
+                        {{ session('error') }}
+                    </p>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 ml-4 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        @endif
+
+        <x-crm.card :padding="false">
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto divide-y divide-hando-border-light dark:divide-hando-border-dark">
+                    <thead class="bg-hando-gray-50 dark:bg-hando-gray-800">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Archivo
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Tipo
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Tamaño
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Subido por
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Fecha
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Acciones
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-hando-card-dark divide-y divide-hando-border-light dark:divide-hando-border-dark">
+                        @forelse($reportType->files as $file)
+                        <tr class="hover:bg-hando-gray-50 dark:hover:bg-hando-gray-700 transition-colors">
+                            <td class="px-6 py-4 text-sm text-hando-text-light dark:text-hando-text-dark">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-hando flex items-center justify-center">
+                                        @if(in_array(strtolower($file->extension), ['jpg', 'jpeg', 'png', 'gif', 'svg']))
+                                            <svg class="w-5 h-5 text-hando-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                        @elseif(in_array(strtolower($file->extension), ['pdf']))
+                                            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                            </svg>
+                                        @elseif(in_array(strtolower($file->extension), ['doc', 'docx']))
+                                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
+                                        @elseif(in_array(strtolower($file->extension), ['xls', 'xlsx', 'xlsb']))
+                                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        @else
+                                            <svg class="w-5 h-5 text-hando-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
+                                        @endif
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="font-medium text-hando-text-light dark:text-hando-text-dark">{{ $file->nombre_original }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-gray-500 dark:text-hando-gray-400">
+                                <span class="uppercase">{{ $file->extension }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-gray-500 dark:text-hando-gray-400">
+                                {{ $file->tamano_formateado }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-gray-500 dark:text-hando-gray-400">
+                                {{ $file->creator ? $file->creator->name : 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-gray-500 dark:text-hando-gray-400">
+                                {{ $file->created_at->format('d/m/Y H:i') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                <a href="{{ route('admin.report-files.download', $file) }}" class="text-hando-primary hover:text-hando-primary-hover transition-colors">
+                                    Descargar
+                                </a>
+                                <form action="{{ route('admin.report-files.destroy', $file) }}" method="POST" class="inline-block" onsubmit="return confirm('¿Estás seguro de eliminar este archivo?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-hando-danger hover:text-red-700 transition-colors">
+                                        Eliminar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center justify-center">
+                                    <svg class="w-12 h-12 text-hando-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                    </svg>
+                                    <p class="text-hando-gray-500 dark:text-hando-gray-400 text-sm mb-4">No hay archivos para este tipo de reporte</p>
+                                    <a href="{{ route('admin.report-files.create', $reportType) }}">
+                                        <x-hando-button variant="primary" size="sm">
+                                            Subir el primer archivo
+                                        </x-hando-button>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </x-crm.card>
+    </div>
+</x-layouts.crm>
