@@ -56,7 +56,15 @@
         </div>
 
         <x-crm.card>
-            <form action="{{ route('admin.report-files.store', $reportType) }}" method="POST" enctype="multipart/form-data" x-data="{ files: [] }">
+            <form action="{{ route('admin.report-files.store', $reportType) }}"
+                  method="POST"
+                  enctype="multipart/form-data"
+                  x-data="{
+                      files: [],
+                      uploading: false,
+                      uploadProgress: 0
+                  }"
+                  @submit="uploading = true">
                 @csrf
 
                 <div class="space-y-6">
@@ -134,24 +142,74 @@
                         </div>
                     </div>
 
+                    <!-- Barra de progreso (visible solo cuando se está subiendo) -->
+                    <div x-show="uploading" x-cloak class="space-y-3">
+                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-hando p-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0">
+                                    <!-- Spinner animado -->
+                                    <svg class="animate-spin h-6 w-6 text-hando-primary" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-bold text-blue-900 dark:text-blue-100">
+                                        Subiendo archivos...
+                                    </p>
+                                    <p class="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                        Por favor espera. Esto puede tardar unos minutos según el tamaño de los archivos.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Barra de progreso animada -->
+                            <div class="mt-4 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2.5 overflow-hidden">
+                                <div class="bg-hando-primary h-2.5 rounded-full animate-pulse" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Botones de acción -->
                     <div class="flex items-center justify-end space-x-3 pt-4 border-t border-hando-border-light dark:border-hando-border-dark">
-                        <a href="{{ route('admin.report-files.show', $reportType) }}">
-                            <x-hando-button variant="secondary" type="button">
+                        <a href="{{ route('admin.report-files.show', $reportType) }}" :class="{ 'pointer-events-none opacity-50': uploading }">
+                            <x-hando-button variant="secondary" type="button" :disabled="uploading">
                                 Cancelar
                             </x-hando-button>
                         </a>
-                        <x-hando-button variant="primary" type="submit">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button
+                            type="submit"
+                            :disabled="files.length === 0 || uploading"
+                            :class="{
+                                'opacity-50 cursor-not-allowed': files.length === 0 || uploading,
+                                'hover:bg-blue-700': files.length > 0 && !uploading
+                            }"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-hando shadow-sm text-white bg-hando-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-hando-primary transition-all duration-150"
+                        >
+                            <!-- Icono normal o spinner -->
+                            <svg x-show="!uploading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                             </svg>
-                            Subir Archivos
-                        </x-hando-button>
+                            <svg x-show="uploading" x-cloak class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <!-- Texto del botón -->
+                            <span x-show="!uploading">
+                                <span x-show="files.length === 0">Selecciona archivos primero</span>
+                                <span x-show="files.length > 0" x-text="'Subir ' + files.length + ' archivo' + (files.length > 1 ? 's' : '')"></span>
+                            </span>
+                            <span x-show="uploading" x-cloak>Subiendo...</span>
+                        </button>
                     </div>
                 </div>
             </form>
         </x-crm.card>
     </div>
+
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
 
     <script>
         function formatFileSize(bytes) {
