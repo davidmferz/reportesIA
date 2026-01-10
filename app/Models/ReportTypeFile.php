@@ -11,6 +11,9 @@ class ReportTypeFile extends Model
 
     protected $fillable = [
         'report_type_id',
+        'capitulo',
+        'tipo_archivo',
+        'grupo_id',
         'nombre_original',
         'nombre_archivo',
         'ruta',
@@ -57,5 +60,49 @@ class ReportTypeFile extends Model
         } else {
             return $bytes . ' bytes';
         }
+    }
+
+    // Query Scopes
+    public function scopeByGrupo($query, $grupoId)
+    {
+        return $query->where('grupo_id', $grupoId);
+    }
+
+    public function scopeEntrada($query)
+    {
+        return $query->where('tipo_archivo', 'entrada');
+    }
+
+    public function scopeSalida($query)
+    {
+        return $query->where('tipo_archivo', 'salida');
+    }
+
+    // Get all files in the same group
+    public function grupoFiles()
+    {
+        return $this->hasMany(ReportTypeFile::class, 'grupo_id', 'grupo_id');
+    }
+
+    // Get the output file for this group (if this is an input file)
+    public function archivoSalida()
+    {
+        if ($this->tipo_archivo === 'entrada' && $this->grupo_id) {
+            return ReportTypeFile::where('grupo_id', $this->grupo_id)
+                ->where('tipo_archivo', 'salida')
+                ->first();
+        }
+        return null;
+    }
+
+    // Get input files for this group (if this is an output file)
+    public function archivosEntrada()
+    {
+        if ($this->tipo_archivo === 'salida' && $this->grupo_id) {
+            return ReportTypeFile::where('grupo_id', $this->grupo_id)
+                ->where('tipo_archivo', 'entrada')
+                ->get();
+        }
+        return collect();
     }
 }
