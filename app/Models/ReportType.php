@@ -40,4 +40,20 @@ class ReportType extends Model
     {
         return $this->hasMany(ReportTypeFile::class);
     }
+
+    /**
+     * Relación con el entrenamiento de IA
+     */
+    public function training()
+    {
+        return $this->hasOne(AITraining::class);
+    }
+
+    /**
+     * Verifica si el tipo de reporte tiene un entrenamiento listo
+     */
+    public function hasReadyTraining(): bool
+    {
+        return $this->training && $this->training->status === 'ready';
+    }
 }

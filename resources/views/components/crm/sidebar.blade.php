@@ -70,6 +70,16 @@
                         Entrenamiento
                     </a>
                 </li>
+                <li>
+                    <a href="{{ route('admin.ai-training.index') }}"
+                       class="flex items-center px-3 py-2.5 rounded-hando text-sm font-medium transition-colors duration-150
+                              {{ request()->routeIs('admin.ai-training.*') ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 border-l-4 border-purple-500' : 'text-hando-gray-600 dark:text-hando-gray-400 hover:bg-hando-gray-100 dark:hover:bg-hando-gray-700' }}">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        IA Generativa
+                    </a>
+                </li>
             </ul>
         </div>
         @endif

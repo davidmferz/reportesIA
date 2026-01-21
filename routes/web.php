@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ReportTypeController;
 use App\Http\Controllers\ReportTypeFileController;
+use App\Http\Controllers\AITrainingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -43,6 +44,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('report-files/{reportType}', [ReportTypeFileController::class, 'store'])->name('report-files.store');
     Route::get('report-files/file/{file}/download', [ReportTypeFileController::class, 'download'])->name('report-files.download');
     Route::delete('report-files/file/{file}', [ReportTypeFileController::class, 'destroy'])->name('report-files.destroy');
+
+    // Rutas para Entrenamiento de IA
+    Route::get('ai-training', [AITrainingController::class, 'index'])->name('ai-training.index');
+    Route::get('ai-training/{reportType}', [AITrainingController::class, 'show'])->name('ai-training.show');
+    Route::post('ai-training/{reportType}/train', [AITrainingController::class, 'train'])->name('ai-training.train');
+
+    // Rutas para Generación con IA
+    Route::get('ai-training/{reportType}/generate', [AITrainingController::class, 'createGeneration'])->name('ai-training.generate.create');
+    Route::post('ai-training/{reportType}/generate', [AITrainingController::class, 'generate'])->name('ai-training.generate.store');
+    Route::get('ai-training/{reportType}/generations', [AITrainingController::class, 'generations'])->name('ai-training.generations');
+    Route::get('ai-training/{reportType}/generation/{generation}', [AITrainingController::class, 'showGeneration'])->name('ai-training.generation.show');
+    Route::get('ai-training/{reportType}/generation/{generation}/download', [AITrainingController::class, 'downloadGeneration'])->name('ai-training.generation.download');
+    Route::delete('ai-training/{reportType}/generation/{generation}', [AITrainingController::class, 'destroyGeneration'])->name('ai-training.generation.destroy');
 });
 
 require __DIR__.'/auth.php';
