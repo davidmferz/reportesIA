@@ -46,13 +46,10 @@ class ReportTypeFileController extends Controller
     public function store(Request $request, ReportType $reportType)
     {
         $validated = $request->validate([
-            'capitulo' => 'required|string|max:255',
             'archivos_entrada' => 'required|array|min:1',
             'archivos_entrada.*' => 'required|file|max:51200',
             'archivo_salida' => 'required|file|max:51200',
         ], [
-            'capitulo.required' => 'El campo capítulo es obligatorio.',
-            'capitulo.max' => 'El capítulo no puede tener más de 255 caracteres.',
             'archivos_entrada.required' => 'Debes seleccionar al menos un archivo de entrada.',
             'archivos_entrada.min' => 'Debes seleccionar al menos un archivo de entrada.',
             'archivos_entrada.*.required' => 'Debes seleccionar al menos un archivo de entrada.',
@@ -64,7 +61,6 @@ class ReportTypeFileController extends Controller
         ]);
 
         $grupoId = (string) Str::uuid();
-        $capitulo = $validated['capitulo'];
         $archivosSubidos = 0;
 
         // Process input files
@@ -74,7 +70,7 @@ class ReportTypeFileController extends Controller
                     $archivo,
                     $reportType,
                     $grupoId,
-                    $capitulo,
+                    null,
                     'entrada'
                 );
                 $archivosSubidos++;
@@ -87,13 +83,13 @@ class ReportTypeFileController extends Controller
                 $request->file('archivo_salida'),
                 $reportType,
                 $grupoId,
-                $capitulo,
+                null,
                 'salida'
             );
             $archivosSubidos++;
         }
 
-        $mensaje = "Se han subido {$archivosSubidos} archivos exitosamente para el capítulo: {$capitulo}";
+        $mensaje = "Se han subido {$archivosSubidos} archivos exitosamente.";
 
         return redirect()->route('admin.report-files.show', $reportType)
             ->with('success', $mensaje);

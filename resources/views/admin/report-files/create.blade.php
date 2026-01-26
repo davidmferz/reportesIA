@@ -60,7 +60,6 @@
                   method="POST"
                   enctype="multipart/form-data"
                   x-data="{
-                      capitulo: '',
                       archivosEntrada: [],
                       archivoSalida: null,
                       uploading: false
@@ -79,30 +78,10 @@
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm text-blue-900 dark:text-blue-100">
-                                    Debes especificar el capítulo, seleccionar archivos de entrada (uno o más) y un archivo de salida. Los formatos más comunes son: <strong>DOCX, VSDX, PDF, XLSB</strong>.
+                                    Selecciona archivos de entrada (uno o más) y un archivo de salida. Los formatos más comunes son: <strong>DOCX, VSDX, PDF, XLSB</strong>.
                                 </p>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Capítulo Field -->
-                    <div class="space-y-2">
-                        <label for="capitulo" class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
-                            Capítulo <span class="text-hando-danger">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            name="capitulo"
-                            id="capitulo"
-                            required
-                            maxlength="255"
-                            x-model="capitulo"
-                            class="block w-full rounded-hando border-hando-border-light dark:border-hando-border-dark bg-white dark:bg-hando-card-dark text-hando-text-light dark:text-hando-text-dark focus:border-hando-primary focus:ring-hando-primary sm:text-sm"
-                            placeholder="Ej: Capítulo 1, Introducción, etc."
-                        >
-                        @error('capitulo')
-                            <p class="mt-1 text-sm text-hando-danger">{{ $message }}</p>
-                        @enderror
                     </div>
 
                     <!-- Archivos de Entrada Upload Area -->
@@ -262,10 +241,10 @@
                         </a>
                         <button
                             type="submit"
-                            :disabled="capitulo.length === 0 || archivosEntrada.length === 0 || !archivoSalida || uploading"
+                            :disabled="archivosEntrada.length === 0 || !archivoSalida || uploading"
                             :class="{
-                                'opacity-50 cursor-not-allowed': capitulo.length === 0 || archivosEntrada.length === 0 || !archivoSalida || uploading,
-                                'hover:bg-blue-700': capitulo.length > 0 && archivosEntrada.length > 0 && archivoSalida && !uploading
+                                'opacity-50 cursor-not-allowed': archivosEntrada.length === 0 || !archivoSalida || uploading,
+                                'hover:bg-blue-700': archivosEntrada.length > 0 && archivoSalida && !uploading
                             }"
                             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-hando shadow-sm text-white bg-hando-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-hando-primary transition-all duration-150"
                         >
@@ -279,8 +258,8 @@
                             </svg>
                             <!-- Texto del botón -->
                             <span x-show="!uploading">
-                                <span x-show="capitulo.length === 0 || archivosEntrada.length === 0 || !archivoSalida">Complete todos los campos</span>
-                                <span x-show="capitulo.length > 0 && archivosEntrada.length > 0 && archivoSalida">Subir archivos</span>
+                                <span x-show="archivosEntrada.length === 0 || !archivoSalida">Selecciona los archivos</span>
+                                <span x-show="archivosEntrada.length > 0 && archivoSalida">Subir archivos</span>
                             </span>
                             <span x-show="uploading" x-cloak>Subiendo...</span>
                         </button>

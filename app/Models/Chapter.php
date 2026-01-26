@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class ReportType extends Model
+class Chapter extends Model
 {
     use SoftDeletes;
 
     protected $fillable = [
+        'report_type_id',
         'nombre',
+        'descripcion',
+        'orden',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -19,6 +22,12 @@ class ReportType extends Model
     protected $dates = [
         'deleted_at',
     ];
+
+    // Relación con el tipo de reporte
+    public function reportType()
+    {
+        return $this->belongsTo(ReportType::class);
+    }
 
     // Relaciones de auditoría
     public function creator()
@@ -34,31 +43,5 @@ class ReportType extends Model
     public function deleter()
     {
         return $this->belongsTo(User::class, 'deleted_by');
-    }
-
-    public function files()
-    {
-        return $this->hasMany(ReportTypeFile::class);
-    }
-
-    public function chapters()
-    {
-        return $this->hasMany(Chapter::class)->orderBy('orden');
-    }
-
-    /**
-     * Relación con el entrenamiento de IA
-     */
-    public function training()
-    {
-        return $this->hasOne(AITraining::class);
-    }
-
-    /**
-     * Verifica si el tipo de reporte tiene un entrenamiento listo
-     */
-    public function hasReadyTraining(): bool
-    {
-        return $this->training && $this->training->status === 'ready';
     }
 }

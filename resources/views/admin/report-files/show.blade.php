@@ -130,12 +130,12 @@
                     @endphp
 
                     <x-crm.card>
-                        <!-- Chapter Header -->
+                        <!-- Header -->
                         <div class="border-b border-hando-border-light dark:border-hando-border-dark pb-4 mb-4">
                             <div class="flex items-center justify-between">
                                 <div>
                                     <h3 class="text-lg font-bold text-hando-text-light dark:text-hando-text-dark">
-                                        {{ $firstFile->capitulo }}
+                                        {{ $firstFile->capitulo ?? 'Grupo de Archivos' }}
                                     </h3>
                                     <p class="text-sm text-hando-gray-500 dark:text-hando-gray-400 mt-1">
                                         Subido por {{ $firstFile->creator->name ?? 'N/A' }} el {{ $firstFile->created_at->format('d/m/Y H:i') }}

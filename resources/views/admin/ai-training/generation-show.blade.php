@@ -63,7 +63,15 @@
                 </span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                @if($generation->chapter)
+                <div class="bg-purple-50 dark:bg-purple-900/20 rounded-hando p-4 border border-purple-200 dark:border-purple-800">
+                    <p class="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase">Capítulo</p>
+                    <p class="text-sm font-semibold text-purple-900 dark:text-purple-100 mt-1">
+                        {{ $generation->chapter->orden }}. {{ $generation->chapter->nombre }}
+                    </p>
+                </div>
+                @endif
                 <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-4">
                     <p class="text-xs font-medium text-hando-gray-500 uppercase">Generado el</p>
                     <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark mt-1">

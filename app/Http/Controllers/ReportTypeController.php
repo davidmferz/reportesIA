@@ -13,7 +13,7 @@ class ReportTypeController extends Controller
      */
     public function index()
     {
-        $reportTypes = ReportType::with('creator', 'updater')->latest()->get();
+        $reportTypes = ReportType::with('creator', 'updater', 'chapters')->latest()->get();
         return view('admin.report-types.index', compact('reportTypes'));
     }
 

@@ -110,7 +110,10 @@ class AITrainingController extends Controller
                 ->with('error', 'El entrenamiento no está listo. Primero debes entrenar la IA.');
         }
 
-        return view('admin.ai-training.generate', compact('reportType', 'training'));
+        // Cargar los capítulos del tipo de reporte ordenados
+        $chapters = $reportType->chapters()->orderBy('orden')->get();
+
+        return view('admin.ai-training.generate', compact('reportType', 'training', 'chapters'));
     }
 
     /**
@@ -119,10 +122,12 @@ class AITrainingController extends Controller
     public function generate(Request $request, ReportType $reportType)
     {
         $request->validate([
-            'titulo' => 'nullable|string|max:255',
+            'chapter_id' => 'required|exists:chapters,id',
             'archivos' => 'required|array|min:1',
             'archivos.*' => 'required|file|max:51200',
         ], [
+            'chapter_id.required' => 'Debes seleccionar un capítulo.',
+            'chapter_id.exists' => 'El capítulo seleccionado no existe.',
             'archivos.required' => 'Debes subir al menos un archivo de entrada.',
             'archivos.min' => 'Debes subir al menos un archivo de entrada.',
             'archivos.*.max' => 'Cada archivo no puede superar los 50MB.',
@@ -137,12 +142,22 @@ class AITrainingController extends Controller
                 ->with('error', 'El entrenamiento no está listo.');
         }
 
+        // Obtener el capítulo seleccionado
+        $chapter = \App\Models\Chapter::findOrFail($request->chapter_id);
+
+        // Verificar que el capítulo pertenece al tipo de reporte
+        if ($chapter->report_type_id !== $reportType->id) {
+            return redirect()->back()
+                ->with('error', 'El capítulo no pertenece a este tipo de reporte.');
+        }
+
         try {
-            // Crear registro de generación
+            // Crear registro de generación con el capítulo
             $generation = AIGeneration::create([
                 'ai_training_id' => $training->id,
                 'user_id' => Auth::id(),
-                'titulo' => $request->titulo ?? 'Generación ' . now()->format('d/m/Y H:i'),
+                'chapter_id' => $chapter->id,
+                'titulo' => $chapter->nombre . ' - ' . now()->format('d/m/Y H:i'),
                 'input_content' => '',
                 'status' => 'processing',
             ]);
@@ -216,6 +231,7 @@ class AITrainingController extends Controller
      */
     public function showGeneration(ReportType $reportType, AIGeneration $generation)
     {
+        $generation->load(['user', 'chapter']);
         return view('admin.ai-training.generation-show', compact('reportType', 'generation'));
     }
 
@@ -227,7 +243,7 @@ class AITrainingController extends Controller
         $training = AITraining::where('report_type_id', $reportType->id)->first();
 
         $generations = $training
-            ? $training->generations()->with('user')->latest()->paginate(20)
+            ? $training->generations()->with(['user', 'chapter'])->latest()->paginate(20)
             : collect();
 
         return view('admin.ai-training.generations', compact('reportType', 'training', 'generations'));

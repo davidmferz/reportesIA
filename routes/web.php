@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ReportTypeController;
 use App\Http\Controllers\ReportTypeFileController;
 use App\Http\Controllers\AITrainingController;
+use App\Http\Controllers\ChapterController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -36,6 +37,14 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('report-types', ReportTypeController::class);
+
+    // Rutas para gestión de capítulos de tipos de reportes
+    Route::get('report-types/{reportType}/chapters', [ChapterController::class, 'index'])->name('chapters.index');
+    Route::get('report-types/{reportType}/chapters/create', [ChapterController::class, 'create'])->name('chapters.create');
+    Route::post('report-types/{reportType}/chapters', [ChapterController::class, 'store'])->name('chapters.store');
+    Route::get('report-types/{reportType}/chapters/{chapter}/edit', [ChapterController::class, 'edit'])->name('chapters.edit');
+    Route::put('report-types/{reportType}/chapters/{chapter}', [ChapterController::class, 'update'])->name('chapters.update');
+    Route::delete('report-types/{reportType}/chapters/{chapter}', [ChapterController::class, 'destroy'])->name('chapters.destroy');
 
     // Rutas para gestión de archivos de tipos de reportes
     Route::get('report-files', [ReportTypeFileController::class, 'index'])->name('report-files.index');

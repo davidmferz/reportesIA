@@ -31,10 +31,14 @@
                   enctype="multipart/form-data"
                   id="generateForm"
                   x-data="{
-                      titulo: '',
+                      chapter_id: '',
                       archivos: [],
                       generating: false,
                       submitForm() {
+                          if (!this.chapter_id) {
+                              alert('Debes seleccionar un capítulo');
+                              return false;
+                          }
                           if (this.archivos.length === 0) {
                               alert('Debes seleccionar al menos un archivo');
                               return false;
@@ -63,20 +67,43 @@
                         </div>
                     </div>
 
-                    <!-- Título (opcional) -->
+                    <!-- Selección de Capítulo -->
                     <div class="space-y-2">
-                        <label for="titulo" class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
-                            Título del documento <span class="text-hando-gray-400">(opcional)</span>
+                        <label for="chapter_id" class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
+                            Capítulo <span class="text-hando-danger">*</span>
                         </label>
-                        <input
-                            type="text"
-                            name="titulo"
-                            id="titulo"
-                            maxlength="255"
-                            x-model="titulo"
+                        <p class="text-xs text-hando-gray-500 dark:text-hando-gray-400 mb-2">
+                            Selecciona el capítulo para el cual la IA generará el documento.
+                        </p>
+                        <select
+                            name="chapter_id"
+                            id="chapter_id"
+                            required
+                            x-model="chapter_id"
                             class="block w-full rounded-hando border-hando-border-light dark:border-hando-border-dark bg-white dark:bg-hando-card-dark text-hando-text-light dark:text-hando-text-dark focus:border-hando-primary focus:ring-hando-primary sm:text-sm"
-                            placeholder="Ej: Reporte Enero 2024, Análisis Q1, etc."
                         >
+                            <option value="">-- Selecciona un capítulo --</option>
+                            @foreach($chapters as $chapter)
+                                <option value="{{ $chapter->id }}">
+                                    {{ $chapter->orden }}. {{ $chapter->nombre }}
+                                    @if($chapter->descripcion)
+                                        - {{ Str::limit($chapter->descripcion, 50) }}
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @if($chapters->isEmpty())
+                            <p class="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                No hay capítulos disponibles para este tipo de reporte.
+                                <a href="{{ route('admin.chapters.index', $reportType) }}" class="underline hover:no-underline">Crear capítulos</a>
+                            </p>
+                        @endif
+                        @error('chapter_id')
+                            <p class="mt-1 text-sm text-hando-danger">{{ $message }}</p>
+                        @enderror
                     </div>
 
                     <!-- Archivos de Entrada -->
@@ -167,9 +194,9 @@
 
                         <button
                             type="submit"
-                            :disabled="archivos.length === 0 || generating"
+                            :disabled="!chapter_id || archivos.length === 0 || generating"
                             class="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-hando shadow-sm text-white transition-all bg-gray-400"
-                            :class="archivos.length > 0 && !generating ? 'bg-green-600 hover:bg-green-700 cursor-pointer' : 'bg-gray-400 cursor-not-allowed'"
+                            :class="chapter_id && archivos.length > 0 && !generating ? 'bg-green-600 hover:bg-green-700 cursor-pointer' : 'bg-gray-400 cursor-not-allowed'"
                         >
                             <svg x-show="!generating" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -178,7 +205,7 @@
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            <span x-show="!generating" x-text="archivos.length > 0 ? 'Generar con IA' : 'Selecciona archivos primero'">Selecciona archivos primero</span>
+                            <span x-show="!generating" x-text="chapter_id && archivos.length > 0 ? 'Generar con IA' : (!chapter_id ? 'Selecciona un capítulo' : 'Selecciona archivos')">Selecciona un capítulo</span>
                             <span x-show="generating" x-cloak>Generando...</span>
                         </button>
                     </div>

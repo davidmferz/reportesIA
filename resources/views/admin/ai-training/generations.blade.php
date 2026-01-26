@@ -48,7 +48,7 @@
                         <thead class="bg-hando-gray-50 dark:bg-hando-gray-800">
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
-                                    Título
+                                    Capítulo
                                 </th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
                                     Usuario
@@ -72,14 +72,23 @@
                             <tr class="hover:bg-hando-gray-50 dark:hover:bg-hando-gray-800 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-8 w-8 bg-green-100 dark:bg-green-900/30 rounded flex items-center justify-center">
-                                            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                        <div class="flex-shrink-0 h-8 w-8 bg-purple-100 dark:bg-purple-900/30 rounded flex items-center justify-center">
+                                            <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                             </svg>
                                         </div>
-                                        <span class="ml-3 font-medium text-hando-text-light dark:text-hando-text-dark">
-                                            {{ $generation->titulo ?? 'Sin título' }}
-                                        </span>
+                                        <div class="ml-3">
+                                            <span class="font-medium text-hando-text-light dark:text-hando-text-dark">
+                                                @if($generation->chapter)
+                                                    {{ $generation->chapter->orden }}. {{ $generation->chapter->nombre }}
+                                                @else
+                                                    {{ $generation->titulo ?? 'Sin capítulo' }}
+                                                @endif
+                                            </span>
+                                            @if($generation->chapter && $generation->titulo)
+                                                <p class="text-xs text-hando-gray-500">{{ $generation->titulo }}</p>
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-gray-500 dark:text-hando-gray-400">

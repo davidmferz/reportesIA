@@ -12,6 +12,7 @@ class AIGeneration extends Model
     protected $fillable = [
         'ai_training_id',
         'user_id',
+        'chapter_id',
         'titulo',
         'input_content',
         'output_content',
@@ -44,6 +45,14 @@ class AIGeneration extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relación con el capítulo
+     */
+    public function chapter(): BelongsTo
+    {
+        return $this->belongsTo(Chapter::class);
     }
 
     /**
