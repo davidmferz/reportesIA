@@ -192,25 +192,7 @@
                     </div>
                 </x-crm.card>
 
-                @if(Auth::user()->is_admin)
-                <!-- System Info -->
-                <x-crm.card title="Información del Sistema" class="mt-6">
-                    <div class="space-y-3 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-hando-gray-500 dark:text-hando-gray-400">Laravel</span>
-                            <span class="font-medium text-hando-text-light dark:text-hando-text-dark">{{ app()->version() }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-hando-gray-500 dark:text-hando-gray-400">PHP</span>
-                            <span class="font-medium text-hando-text-light dark:text-hando-text-dark">{{ phpversion() }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-hando-gray-500 dark:text-hando-gray-400">Entorno</span>
-                            <span class="font-medium text-hando-text-light dark:text-hando-text-dark">{{ app()->environment() }}</span>
-                        </div>
-                    </div>
-                </x-crm.card>
-                @endif
+                
             </div>
         </div>
     </div>
