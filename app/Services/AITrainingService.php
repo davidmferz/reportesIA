@@ -135,9 +135,22 @@ class AITrainingService
         // Analizar patrones comunes en las salidas
         $patternAnalysis = $this->analyzeOutputPatterns($outputContents);
 
+        // Obtener el prompt personalizado del tipo de reporte si existe
+        $customPrompt = $reportType->prompt ? trim($reportType->prompt) : '';
+        $customPromptSection = '';
+
+        if (!empty($customPrompt)) {
+            $customPromptSection = <<<CUSTOM
+
+## INSTRUCCIONES PERSONALIZADAS DEL USUARIO
+{$customPrompt}
+
+CUSTOM;
+        }
+
         $prompt = <<<PROMPT
 Eres un asistente experto especializado en generar documentos del tipo "{$reportType->nombre}".
-
+{$customPromptSection}
 ## TU ROL
 Tu tarea principal es transformar documentos de entrada en documentos de salida siguiendo exactamente el formato, estructura y estilo que has aprendido de los ejemplos de entrenamiento proporcionados.
 

@@ -13,8 +13,46 @@ class ReportTypeFileController extends Controller
 {
     public function index()
     {
-        $reportTypes = ReportType::withCount('files')->get();
+        $reportTypes = ReportType::withCount('files')->with('creator')->get();
         return view('admin.report-files.index', compact('reportTypes'));
+    }
+
+    /**
+     * Muestra el formulario para editar el prompt
+     */
+    public function editPrompt(ReportType $reportType)
+    {
+        $reportType->load('creator', 'updater');
+        return view('admin.report-files.prompt', compact('reportType'));
+    }
+
+    /**
+     * Actualiza el prompt de un tipo de reporte
+     */
+    public function updatePrompt(Request $request, ReportType $reportType)
+    {
+        $validated = $request->validate([
+            'prompt' => 'nullable|string|max:65535',
+        ], [
+            'prompt.max' => 'El prompt no puede tener más de 65535 caracteres.',
+        ]);
+
+        $reportType->update([
+            'prompt' => $validated['prompt'],
+            'updated_by' => Auth::id(),
+        ]);
+
+        // Si es una petición AJAX, devolver JSON
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Prompt actualizado exitosamente.',
+            ]);
+        }
+
+        // Si es una petición normal de formulario, redirigir
+        return redirect()->route('admin.report-files.index')
+            ->with('success', 'Prompt actualizado exitosamente.');
     }
 
     public function show(ReportType $reportType)

@@ -11,6 +11,7 @@ class ReportType extends Model
 
     protected $fillable = [
         'nombre',
+        'prompt',
         'created_by',
         'updated_by',
         'deleted_by',

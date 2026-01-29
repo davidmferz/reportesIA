@@ -3,7 +3,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-hando-text-light dark:text-hando-text-dark">Gestión de Archivos</h1>
-                <p class="mt-1 text-sm text-hando-gray-500 dark:text-hando-gray-400">Administra archivos por tipo de reporte</p>
+                <p class="mt-1 text-sm text-hando-gray-500 dark:text-hando-gray-400">Administra archivos y prompts por tipo de reporte para entrenamiento de IA</p>
             </div>
         </div>
     </x-slot>
@@ -39,13 +39,16 @@
                             <th scope="col" class="w-[10%] px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
                                 ID
                             </th>
-                            <th scope="col" class="w-[40%] px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                            <th scope="col" class="w-[35%] px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
                                 Tipo de Reporte
                             </th>
-                            <th scope="col" class="w-[20%] px-6 py-3 text-center text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                            <th scope="col" class="w-[15%] px-6 py-3 text-center text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
                                 Archivos
                             </th>
-                            <th scope="col" class="w-[30%] px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                            <th scope="col" class="w-[15%] px-6 py-3 text-center text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
+                                Prompt IA
+                            </th>
+                            <th scope="col" class="w-[25%] px-6 py-3 text-left text-xs font-medium text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider">
                                 Acciones
                             </th>
                         </tr>
@@ -79,6 +82,20 @@
                                     </span>
                                 @endif
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if($reportType->prompt)
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Configurado
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-hando-gray-100 dark:bg-hando-gray-700 text-hando-gray-500 dark:text-hando-gray-400">
+                                        Sin prompt
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                 <a href="{{ route('admin.report-files.show', $reportType) }}" class="text-hando-primary hover:text-hando-primary-hover transition-colors">
                                     Ver Archivos
@@ -86,13 +103,16 @@
                                 <a href="{{ route('admin.report-files.create', $reportType) }}"
                                    onclick="return confirm('Vas a subir archivos para:\n\n{{ $reportType->nombre }} (ID: #{{ $reportType->id }})\n\n¿Deseas continuar?')"
                                    class="text-green-600 hover:text-green-700 transition-colors">
-                                    Subir Archivo
+                                    Subir
+                                </a>
+                                <a href="{{ route('admin.report-files.prompt', $reportType) }}" class="text-purple-600 hover:text-purple-700 transition-colors">
+                                    Prompt
                                 </a>
                             </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="px-6 py-12 text-center">
+                            <td colspan="5" class="px-6 py-12 text-center">
                                 <div class="flex flex-col items-center justify-center">
                                     <svg class="w-12 h-12 text-hando-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>

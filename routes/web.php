@@ -48,6 +48,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Rutas para gestión de archivos de tipos de reportes
     Route::get('report-files', [ReportTypeFileController::class, 'index'])->name('report-files.index');
+    Route::get('report-files/{reportType}/prompt', [ReportTypeFileController::class, 'editPrompt'])->name('report-files.prompt');
+    Route::patch('report-files/{reportType}/prompt', [ReportTypeFileController::class, 'updatePrompt'])->name('report-files.update-prompt');
     Route::get('report-files/{reportType}', [ReportTypeFileController::class, 'show'])->name('report-files.show');
     Route::get('report-files/{reportType}/create', [ReportTypeFileController::class, 'create'])->name('report-files.create');
     Route::post('report-files/{reportType}', [ReportTypeFileController::class, 'store'])->name('report-files.store');
