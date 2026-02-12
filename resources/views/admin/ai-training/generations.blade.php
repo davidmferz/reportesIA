@@ -101,9 +101,17 @@
                                         @elseif($badge['color'] === 'yellow') bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300
                                         @elseif($badge['color'] === 'red') bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300
                                         @else bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
-                                        @endif">
+                                        @endif"
+                                        @if($generation->hasError() && $generation->error_message)
+                                            title="{{ $generation->error_message }}"
+                                        @endif>
                                         {{ $badge['text'] }}
                                     </span>
+                                    @if($generation->hasError() && $generation->error_message)
+                                        <p class="text-xs text-red-500 dark:text-red-400 mt-1 max-w-[200px] truncate" title="{{ $generation->error_message }}">
+                                            {{ Str::limit($generation->error_message, 40) }}
+                                        </p>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-hando-gray-500 dark:text-hando-gray-400">
                                     {{ $generation->total_tokens ? number_format($generation->total_tokens) : '-' }}

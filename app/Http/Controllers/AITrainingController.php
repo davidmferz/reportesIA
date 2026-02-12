@@ -110,10 +110,13 @@ class AITrainingController extends Controller
                 ->with('error', 'El entrenamiento no está listo. Primero debes entrenar la IA.');
         }
 
+        // Verificar estado de OpenAI
+        $openaiStatus = $this->trainingService->checkOpenAIStatus();
+
         // Cargar los capítulos del tipo de reporte ordenados
         $chapters = $reportType->chapters()->orderBy('orden')->get();
 
-        return view('admin.ai-training.generate', compact('reportType', 'training', 'chapters'));
+        return view('admin.ai-training.generate', compact('reportType', 'training', 'chapters', 'openaiStatus'));
     }
 
     /**

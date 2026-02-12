@@ -337,6 +337,30 @@ PROMPT;
                 ],
             ];
 
+        } catch (\OpenAI\Exceptions\RateLimitException $e) {
+            // Extraer el error real del body de la respuesta (puede ser insufficient_quota)
+            $errorMessage = 'Rate limit exceeded';
+            try {
+                $body = json_decode($e->response->getBody()->getContents(), true);
+                $errorCode = $body['error']['code'] ?? '';
+                $errorDetail = $body['error']['message'] ?? $e->getMessage();
+                Log::error("Error OpenAI (RateLimit): code={$errorCode}, message={$errorDetail}");
+
+                if ($errorCode === 'insufficient_quota') {
+                    $errorMessage = 'Se ha agotado el crédito de OpenAI. Es necesario agregar fondos en https://platform.openai.com/account/billing. Contacta al administrador.';
+                } else {
+                    $errorMessage = $this->parseOpenAIError($errorDetail);
+                }
+            } catch (\Exception $parseEx) {
+                Log::error("Error generando salida con IA (RateLimit): " . $e->getMessage());
+                $errorMessage = $this->parseOpenAIError($e->getMessage());
+            }
+
+            return [
+                'success' => false,
+                'error' => $errorMessage,
+            ];
+
         } catch (\Exception $e) {
             Log::error("Error generando salida con IA: " . $e->getMessage());
 
@@ -502,5 +526,55 @@ PROMPT;
             'gpt-4-turbo' => 'GPT-4 Turbo (Potente)',
             'gpt-3.5-turbo' => 'GPT-3.5 Turbo (Más económico)',
         ];
+    }
+
+    /**
+     * Verifica la conectividad y cuota con la API de OpenAI
+     */
+    public function checkOpenAIStatus(): array
+    {
+        try {
+            $response = OpenAI::chat()->create([
+                'model' => 'gpt-4o-mini',
+                'messages' => [['role' => 'user', 'content' => 'OK']],
+                'max_tokens' => 3,
+            ]);
+
+            return [
+                'ok' => true,
+                'message' => 'La API de OpenAI está funcionando correctamente.',
+            ];
+        } catch (\OpenAI\Exceptions\RateLimitException $e) {
+            try {
+                $body = json_decode($e->response->getBody()->getContents(), true);
+                $errorCode = $body['error']['code'] ?? 'rate_limit';
+
+                if ($errorCode === 'insufficient_quota') {
+                    return [
+                        'ok' => false,
+                        'message' => 'Sin crédito en OpenAI. Agrega fondos en https://platform.openai.com/account/billing',
+                        'code' => 'insufficient_quota',
+                    ];
+                }
+
+                return [
+                    'ok' => false,
+                    'message' => 'Límite de solicitudes excedido. Intenta en unos minutos.',
+                    'code' => 'rate_limit',
+                ];
+            } catch (\Exception $parseEx) {
+                return [
+                    'ok' => false,
+                    'message' => 'Error de límite de solicitudes: ' . $e->getMessage(),
+                    'code' => 'rate_limit',
+                ];
+            }
+        } catch (\Exception $e) {
+            return [
+                'ok' => false,
+                'message' => 'Error de conexión con OpenAI: ' . $e->getMessage(),
+                'code' => 'connection_error',
+            ];
+        }
     }
 }

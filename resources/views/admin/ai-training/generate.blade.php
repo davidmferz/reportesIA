@@ -25,6 +25,28 @@
     </x-slot>
 
     <div class="max-w-3xl mx-auto">
+        {{-- Alerta de estado de OpenAI --}}
+        @if(isset($openaiStatus) && !$openaiStatus['ok'])
+        <div class="mb-6 relative overflow-hidden rounded-hando bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 shadow-hando">
+            <div class="flex items-center p-4">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <h3 class="text-sm font-bold text-red-900 dark:text-red-100">API de OpenAI no disponible</h3>
+                    <p class="text-sm text-red-800 dark:text-red-200 mt-1">{{ $openaiStatus['message'] }}</p>
+                    @if(($openaiStatus['code'] ?? '') === 'insufficient_quota')
+                        <p class="text-xs text-red-600 dark:text-red-300 mt-2">
+                            Para resolver esto, ve a <a href="https://platform.openai.com/account/billing" target="_blank" class="underline font-semibold">platform.openai.com/account/billing</a> y agrega fondos a tu cuenta.
+                        </p>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
         <x-crm.card>
             <form action="{{ route('admin.ai-training.generate.store', $reportType) }}"
                   method="POST"
