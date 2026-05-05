@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer require:*)",
+      "Bash(php artisan breeze:install:*)",
+      "Bash(php artisan:*)",
+      "Bash(composer update:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nConfigure Composer for PHP 8.2 compatibility and add deploy files\n\n- Set platform PHP version to 8.2.30 in composer.json\n- Downgrade Symfony packages from v8 to v7.4 for PHP 8.2 compatibility\n- Add Apache virtual host configuration \\(reportesIA.conf\\)\n- Add comprehensive deployment guide \\(DEPLOY.md\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate domain to mfg.blmovil.com in all configuration files\n\n- Changed ServerName from reportesia.blmovil.com to mfg.blmovil.com\n- Updated Apache logs paths to mfg.blmovil.com-*\n- Updated deployment guide with correct domain\n- Added both options for Apache configuration \\(existing file vs separate file\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm run build:*)",
+      "Bash(chmod:*)",
+      "Bash(composer show:*)"
+    ]
+  }
+}

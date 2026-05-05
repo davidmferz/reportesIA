@@ -16,7 +16,7 @@ class AITrainingService
     /**
      * Modelo por defecto de OpenAI a utilizar
      */
-    protected string $defaultModel = 'gpt-4o-mini';
+    protected string $defaultModel = 'gpt-4o';
 
     /**
      * Límites de tokens por modelo
@@ -28,9 +28,18 @@ class AITrainingService
         'gpt-3.5-turbo' => ['context' => 16385, 'output' => 4096],
     ];
 
-    public function __construct(DocumentExtractorService $extractor)
+    protected OutputValidatorService $validator;
+
+    /**
+     * Máximo de reintentos del loop de auto-corrección.
+     * Más de 2 da rendimientos decrecientes y consume tokens innecesarios.
+     */
+    protected int $maxValidationRetries = 2;
+
+    public function __construct(DocumentExtractorService $extractor, OutputValidatorService $validator)
     {
         $this->extractor = $extractor;
+        $this->validator = $validator;
     }
 
     /**
@@ -128,54 +137,91 @@ class AITrainingService
     }
 
     /**
-     * Construye un prompt del sistema mejorado analizando los patrones de los ejemplos
+     * Construye un prompt del sistema. Las instrucciones del cliente tienen MÁXIMA prioridad
+     * y NUNCA pueden ser contradichas por reglas del sistema.
      */
     protected function buildEnhancedSystemPrompt(ReportType $reportType, array $outputContents): string
     {
-        // Analizar patrones comunes en las salidas
-        $patternAnalysis = $this->analyzeOutputPatterns($outputContents);
-
-        // Obtener el prompt personalizado del tipo de reporte si existe
         $customPrompt = $reportType->prompt ? trim($reportType->prompt) : '';
-        $customPromptSection = '';
+        $modoEstricto = (bool) ($reportType->modo_estricto ?? false);
 
+        if ($modoEstricto && !empty($customPrompt)) {
+            return $this->buildStrictSystemPrompt($reportType, $customPrompt);
+        }
+
+        return $this->buildStandardSystemPrompt($reportType, $customPrompt, $outputContents);
+    }
+
+    /**
+     * Modo estricto: el prompt del cliente es la única ley. Sin patrones, sin reglas
+     * adicionales que puedan entrar en conflicto.
+     */
+    protected function buildStrictSystemPrompt(ReportType $reportType, string $customPrompt): string
+    {
+        return <<<PROMPT
+Generás documentos del tipo "{$reportType->nombre}".
+
+## INSTRUCCIONES OBLIGATORIAS (PRIORIDAD MÁXIMA)
+Las siguientes instrucciones son la ÚNICA ley para construir el documento. No las amplíes,
+no las interpretes, no las contradigas con conocimiento general. Si una instrucción del
+usuario entra en conflicto con cualquier otra consideración, GANA la instrucción del usuario.
+
+{$customPrompt}
+
+## CONTRATO DE EJECUCIÓN
+- La fuente de verdad es EXCLUSIVAMENTE el contenido de entrada del usuario.
+- No incorpores información, contexto, beneficios, conclusiones, ni suposiciones que no
+  deriven literalmente de la entrada.
+- No agregues secciones, encabezados ni cierres que no estén explícitamente solicitados.
+- Si una sección no se puede desarrollar sin violar las reglas, mantenela implícita
+  o omitila — NO rellenes.
+- Antes de entregar, releé las instrucciones del usuario y eliminá cualquier contenido
+  que las viole.
+PROMPT;
+    }
+
+    /**
+     * Modo estándar: usa ejemplos y patrones, pero el prompt del cliente sigue mandando
+     * sobre las reglas del sistema.
+     */
+    protected function buildStandardSystemPrompt(ReportType $reportType, string $customPrompt, array $outputContents): string
+    {
+        $patternAnalysis = $this->analyzeOutputPatterns($outputContents, $customPrompt);
+
+        $customPromptSection = '';
         if (!empty($customPrompt)) {
             $customPromptSection = <<<CUSTOM
 
-## INSTRUCCIONES PERSONALIZADAS DEL USUARIO
+## INSTRUCCIONES DEL USUARIO (PRIORIDAD MÁXIMA)
+Estas instrucciones son la PRIMERA ley. Si alguna regla posterior o algún patrón de los
+ejemplos las contradice, GANAN estas instrucciones. No las amplíes ni las interpretes.
+
 {$customPrompt}
 
 CUSTOM;
         }
 
         $prompt = <<<PROMPT
-Eres un asistente experto especializado en generar documentos del tipo "{$reportType->nombre}".
+Generás documentos del tipo "{$reportType->nombre}" a partir de los archivos de entrada.
 {$customPromptSection}
-## TU ROL
-Tu tarea principal es transformar documentos de entrada en documentos de salida siguiendo exactamente el formato, estructura y estilo que has aprendido de los ejemplos de entrenamiento proporcionados.
+## ROL
+Tu tarea es transformar la entrada en una salida coherente, manteniendo fidelidad estricta
+a la información provista. Los ejemplos sirven como REFERENCIA de estilo, no como plantilla
+obligatoria — si las instrucciones del usuario piden otra cosa, seguilas a ellas.
 
-## PROCESO DE ANÁLISIS
-Cuando recibas nuevos documentos de entrada:
-1. **EXTRAE** toda la información relevante de los documentos de entrada
-2. **IDENTIFICA** los datos clave, cifras, nombres, fechas y conceptos importantes
-3. **TRANSFORMA** esta información siguiendo el patrón de los ejemplos de entrenamiento
-4. **GENERA** una salida coherente y completa
+## PROCESO
+1. Extraé los datos clave de la entrada (cifras, nombres, fechas, hechos).
+2. Reorganizá esa información según las instrucciones del usuario.
+3. Si no hay instrucciones específicas, usá los ejemplos como guía de estilo.
+4. NO inventes datos que no estén en la entrada.
 
-## PATRONES IDENTIFICADOS EN LOS EJEMPLOS
+## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
 {$patternAnalysis}
 
-## REGLAS IMPORTANTES
-- Mantén SIEMPRE el mismo formato y estructura que los ejemplos de entrenamiento
-- Usa la terminología y estilo consistente con los ejemplos
-- Si hay datos específicos en la entrada (números, nombres, fechas), úsalos en la salida
-- No inventes información que no esté en los documentos de entrada
-- Si falta información necesaria, indica claramente qué falta
-
-## FORMATO DE SALIDA
-- Genera el contenido en formato Markdown para mejor legibilidad
-- Usa encabezados (##, ###), listas (- o *) y tablas cuando sea apropiado
-- Mantén un formato profesional y bien estructurado
-- Incluye todas las secciones que aparecen en los ejemplos de entrenamiento
+## REGLAS BASE
+- No inventes información que no esté en los documentos de entrada.
+- Si falta información necesaria, indicá qué falta en lugar de rellenar.
+- Respetá la longitud y el tono solicitados por el usuario.
 PROMPT;
 
         return $prompt;
@@ -184,10 +230,19 @@ PROMPT;
     /**
      * Analiza los patrones comunes en los contenidos de salida
      */
-    protected function analyzeOutputPatterns(array $outputContents): string
+    protected function analyzeOutputPatterns(array $outputContents, ?string $customPrompt = null): string
     {
         if (empty($outputContents)) {
             return "No se detectaron patrones específicos.";
+        }
+
+        // Filtrar headings que contienen palabras prohibidas según el prompt del cliente.
+        // Si los inyectamos como "secciones comunes", el modelo los reproduce aunque
+        // el prompt diga "no agregar secciones".
+        $forbiddenTerms = [];
+        if ($customPrompt !== null) {
+            $parser = new PromptParserService();
+            $forbiddenTerms = $parser->extractForbiddenTerms($customPrompt);
         }
 
         $patterns = [];
@@ -204,6 +259,19 @@ PROMPT;
             if (!empty($capsMatches[1])) {
                 $headings = array_merge($headings, array_map('trim', $capsMatches[1]));
             }
+        }
+
+        // Filtrar headings contaminados con palabras prohibidas
+        if (!empty($forbiddenTerms)) {
+            $headings = array_filter($headings, function ($h) use ($forbiddenTerms) {
+                $lower = mb_strtolower($h, 'UTF-8');
+                foreach ($forbiddenTerms as $term) {
+                    if ($term !== '' && mb_strpos($lower, $term) !== false) {
+                        return false;
+                    }
+                }
+                return true;
+            });
         }
 
         // Contar frecuencia de encabezados
@@ -290,8 +358,14 @@ PROMPT;
             ],
         ];
 
-        // Agregar ejemplos de entrenamiento como contexto (few-shot learning)
-        $examples = $this->selectBestExamples($training, $inputContent, $availableForExamples);
+        // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
+        // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
+        // (palabras prohibidas, secciones extra, justificaciones) que el cliente
+        // explícitamente rechaza.
+        $modoEstricto = (bool) ($training->reportType->modo_estricto ?? false);
+        $examples = $modoEstricto
+            ? []
+            : $this->selectBestExamples($training, $inputContent, $availableForExamples);
 
         foreach ($examples as $example) {
             $messages[] = [
@@ -305,36 +379,103 @@ PROMPT;
         }
 
         // Agregar el nuevo input del usuario
+        if ($modoEstricto) {
+            $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
+                . "Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS "
+                . "del system prompt. No uses formato de ejemplos previos. No agregues "
+                . "secciones no solicitadas. No incorpores conocimiento externo.";
+        } elseif (!empty($examples)) {
+            $userMessage = "## NUEVA ENTRADA A PROCESAR\n\nBasándote en los ejemplos anteriores "
+                . "como referencia de estilo, generá el documento de salida para el siguiente "
+                . "contenido. Si las instrucciones del usuario en el system prompt contradicen "
+                . "el formato de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"
+                . "{$inputContent}";
+        } else {
+            $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
+                . "Generá la salida siguiendo las instrucciones del system prompt.";
+        }
+
         $messages[] = [
             'role' => 'user',
-            'content' => "## NUEVA ENTRADA A PROCESAR\n\nBasándote en los ejemplos anteriores, genera el documento de salida correspondiente para el siguiente contenido:\n\n{$inputContent}\n\n---\nGenera la salida completa siguiendo exactamente el mismo formato y estructura de los ejemplos de entrenamiento.",
+            'content' => $userMessage,
         ];
 
         try {
-            Log::info("Generando con OpenAI modelo: {$model}, ejemplos: " . count($examples));
+            $customPrompt = $training->reportType->prompt ?? null;
+            $totalUsage = ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+            $generatedContent = '';
+            $validationHistory = [];
+            $finalValidation = null;
 
-            $response = OpenAI::chat()->create([
-                'model' => $model,
-                'messages' => $messages,
-                'max_tokens' => $maxOutputTokens,
-                'temperature' => 0.3, // Más bajo para mayor consistencia
-                'top_p' => 0.9,
-            ]);
+            // Loop de generación + validación + auto-corrección.
+            // Iteración 0: generación inicial. Iteraciones 1..N: reintentos con feedback.
+            for ($attempt = 0; $attempt <= $this->maxValidationRetries; $attempt++) {
+                Log::info("Generando con OpenAI modelo: {$model}, ejemplos: " . count($examples) . ", intento: " . ($attempt + 1));
 
-            $generatedContent = $response->choices[0]->message->content;
+                $response = OpenAI::chat()->create([
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_tokens' => $maxOutputTokens,
+                    'temperature' => 0.1,
+                    'top_p' => 0.9,
+                ]);
 
-            Log::info("Generación exitosa. Tokens: prompt={$response->usage->promptTokens}, completion={$response->usage->completionTokens}");
+                $generatedContent = $response->choices[0]->message->content;
+                $totalUsage['prompt_tokens'] += $response->usage->promptTokens;
+                $totalUsage['completion_tokens'] += $response->usage->completionTokens;
+                $totalUsage['total_tokens'] += $response->usage->totalTokens;
+
+                $validation = $this->validator->validate($generatedContent, $customPrompt);
+                $validationHistory[] = [
+                    'attempt' => $attempt + 1,
+                    'valid' => $validation['valid'],
+                    'violations_count' => count($validation['violations']),
+                    'critical_count' => count(array_filter($validation['violations'], fn($v) => $v['severity'] === 'critical')),
+                ];
+                $finalValidation = $validation;
+
+                Log::info("Intento " . ($attempt + 1) . ": valid={$validation['valid']}, violations=" . count($validation['violations']));
+
+                if ($validation['valid']) {
+                    break;
+                }
+
+                if ($attempt >= $this->maxValidationRetries) {
+                    Log::warning("Loop de validación agotó {$this->maxValidationRetries} reintentos. Aplicando saneo final.");
+                    break;
+                }
+
+                // Reentrenar la conversación con el feedback de validación.
+                // Mantenemos system + último user, agregamos assistant fallido + corrección.
+                $messages[] = ['role' => 'assistant', 'content' => $generatedContent];
+                $messages[] = ['role' => 'user', 'content' => $validation['feedback_for_ai']];
+            }
+
+            // Saneo determinístico final: aunque la IA siga incumpliendo después de N
+            // reintentos, removemos las palabras prohibidas a nivel código. Es la garantía
+            // que la IA no puede dar.
+            $sanitizedContent = $this->sanitizeForbiddenWords($generatedContent, $customPrompt);
+            $sanitized = $sanitizedContent !== $generatedContent;
+            if ($sanitized) {
+                Log::info("Saneo final aplicado: palabras prohibidas removidas a nivel código.");
+                $generatedContent = $sanitizedContent;
+                $finalValidation = $this->validator->validate($generatedContent, $customPrompt);
+            }
 
             return [
                 'success' => true,
                 'content' => $generatedContent,
                 'model' => $model,
                 'examples_used' => count($examples),
-                'usage' => [
-                    'prompt_tokens' => $response->usage->promptTokens,
-                    'completion_tokens' => $response->usage->completionTokens,
-                    'total_tokens' => $response->usage->totalTokens,
+                'validation' => [
+                    'valid' => $finalValidation['valid'] ?? true,
+                    'violations' => $finalValidation['violations'] ?? [],
+                    'metrics' => $finalValidation['metrics'] ?? [],
+                    'attempts' => count($validationHistory),
+                    'history' => $validationHistory,
+                    'sanitized_post_hoc' => $sanitized,
                 ],
+                'usage' => $totalUsage,
             ];
 
         } catch (\OpenAI\Exceptions\RateLimitException $e) {
@@ -376,7 +517,13 @@ PROMPT;
      */
     protected function selectBestExamples(AITraining $training, string $newInput, int $maxTokens): array
     {
-        $examples = $training->examples()->get();
+        // Excluir ejemplos marcados como contaminados o explícitamente excluidos
+        // por la auditoría (Fase 3): arrastran al modelo hacia patrones rechazados.
+        $examples = $training->examples()
+            ->where('excluido_few_shot', false)
+            ->where('audit_status', '!=', 'contaminated')
+            ->get();
+
         $selectedExamples = [];
         $usedTokens = 0;
 
@@ -417,6 +564,51 @@ PROMPT;
         }
 
         return $selectedExamples;
+    }
+
+    /**
+     * Saneo final determinístico: elimina palabras prohibidas del output.
+     * Es la garantía que el LLM (probabilístico) no puede dar.
+     * Se aplica solo si la validación falló después de los reintentos.
+     */
+    protected function sanitizeForbiddenWords(string $output, ?string $customPrompt): string
+    {
+        if (empty($customPrompt)) return $output;
+
+        $parser = new PromptParserService();
+        $forbidden = $parser->extractForbiddenTerms($customPrompt);
+        if (empty($forbidden)) return $output;
+
+        // Reemplazos seguros: mantienen el sentido pero quitan la palabra prohibida
+        $replacements = [
+            'optimizar' => 'ajustar', 'optimización' => 'ajuste', 'optimiza' => 'ajusta',
+            'garantizar' => 'sostener', 'garantiza' => 'sostiene', 'garantía' => 'condición',
+            'asegurar' => 'mantener', 'asegura' => 'mantiene',
+            'implementar' => 'aplicar', 'implementa' => 'aplica', 'implementación' => 'aplicación',
+            'ejecutar' => 'realizar', 'ejecuta' => 'realiza', 'ejecución' => 'realización',
+            'maximizar' => 'incrementar', 'maximiza' => 'incrementa',
+            'efectivo' => 'operativo', 'efectiva' => 'operativa', 'efectividad' => 'operatividad',
+            'esencial' => 'requerido', 'esenciales' => 'requeridos',
+            'clave' => 'definido', 'fundamental' => 'requerido',
+        ];
+
+        foreach ($forbidden as $term) {
+            $replacement = $replacements[$term] ?? '';
+            // Reemplazo case-preserving aproximado: solo lowercase y capitalize
+            $patterns = [
+                '/(?<![a-záéíóúüñ])' . preg_quote($term, '/') . '(?![a-záéíóúüñ])/u' => $replacement,
+                '/(?<![a-záéíóúüñ])' . preg_quote(mb_convert_case($term, MB_CASE_TITLE, 'UTF-8'), '/') . '(?![a-záéíóúüñ])/u' => mb_convert_case($replacement, MB_CASE_TITLE, 'UTF-8'),
+            ];
+            foreach ($patterns as $pattern => $replace) {
+                $output = preg_replace($pattern, $replace, $output);
+            }
+        }
+
+        // Limpiar dobles espacios que el reemplazo puede dejar
+        $output = preg_replace('/[ \t]{2,}/', ' ', $output);
+        $output = preg_replace('/\s+([,.;:])/', '$1', $output);
+
+        return $output;
     }
 
     /**

@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ReportType;
 use App\Models\ReportTypeFile;
+use App\Services\PromptParserService;
+use App\Services\AITrainingService;
+use App\Services\OutputValidatorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +14,11 @@ use Illuminate\Support\Str;
 
 class ReportTypeFileController extends Controller
 {
+    public function __construct(
+        protected PromptParserService $promptParser,
+        protected OutputValidatorService $validator,
+    ) {}
+
     public function index()
     {
         $reportTypes = ReportType::withCount('files')->with('creator')->get();
@@ -23,7 +31,11 @@ class ReportTypeFileController extends Controller
     public function editPrompt(ReportType $reportType)
     {
         $reportType->load('creator', 'updater');
-        return view('admin.report-files.prompt', compact('reportType'));
+
+        $availableModels = app(AITrainingService::class)->getAvailableModels();
+        $promptAnalysis = $this->analyzePromptForView($reportType->prompt);
+
+        return view('admin.report-files.prompt', compact('reportType', 'availableModels', 'promptAnalysis'));
     }
 
     /**
@@ -33,26 +45,95 @@ class ReportTypeFileController extends Controller
     {
         $validated = $request->validate([
             'prompt' => 'nullable|string|max:65535',
+            'model' => 'nullable|string|in:gpt-4o,gpt-4o-mini,gpt-4-turbo,gpt-3.5-turbo',
+            'modo_estricto' => 'nullable|boolean',
         ], [
             'prompt.max' => 'El prompt no puede tener más de 65535 caracteres.',
         ]);
 
         $reportType->update([
-            'prompt' => $validated['prompt'],
+            'prompt' => $validated['prompt'] ?? null,
+            'model' => $validated['model'] ?? null,
+            'modo_estricto' => (bool) ($validated['modo_estricto'] ?? false),
             'updated_by' => Auth::id(),
         ]);
 
-        // Si es una petición AJAX, devolver JSON
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Prompt actualizado exitosamente.',
+                'analysis' => $this->analyzePromptForView($reportType->prompt),
             ]);
         }
 
-        // Si es una petición normal de formulario, redirigir
         return redirect()->route('admin.report-files.index')
             ->with('success', 'Prompt actualizado exitosamente.');
+    }
+
+    /**
+     * Endpoint AJAX: analiza un prompt en vivo (sin guardar) y devuelve
+     * palabras prohibidas detectadas, límites de palabras, validaciones.
+     */
+    public function analyzePrompt(Request $request)
+    {
+        $validated = $request->validate([
+            'prompt' => 'nullable|string|max:65535',
+        ]);
+
+        return response()->json($this->analyzePromptForView($validated['prompt'] ?? ''));
+    }
+
+    /**
+     * Endpoint AJAX: corre el validador determinístico contra un texto de prueba.
+     * Permite al usuario probar el prompt sin gastar tokens de OpenAI.
+     */
+    public function previewValidation(Request $request, ReportType $reportType)
+    {
+        $validated = $request->validate([
+            'sample_output' => 'required|string|max:50000',
+            'prompt_override' => 'nullable|string|max:65535',
+        ]);
+
+        $prompt = $validated['prompt_override'] ?? $reportType->prompt;
+        $result = $this->validator->validate($validated['sample_output'], $prompt);
+
+        return response()->json($result);
+    }
+
+    private function analyzePromptForView(?string $prompt): array
+    {
+        if (empty($prompt)) {
+            return [
+                'forbidden_terms' => [],
+                'word_limits' => ['min' => null, 'max' => null],
+                'char_count' => 0,
+                'has_structure' => false,
+                'warnings' => [],
+            ];
+        }
+
+        $forbidden = $this->promptParser->extractForbiddenTerms($prompt);
+        $limits = $this->promptParser->extractWordLimits($prompt);
+        $promptLower = mb_strtolower($prompt, 'UTF-8');
+
+        $warnings = [];
+        if (mb_strlen($prompt, 'UTF-8') < 50) {
+            $warnings[] = 'El prompt es muy corto. Sé más específico para mejores resultados.';
+        }
+        if (empty($forbidden)) {
+            $warnings[] = 'No se detectaron palabras prohibidas. Usá la sección "PALABRAS PROHIBIDAS:" para listarlas.';
+        }
+        if ($limits['max'] === null && $limits['min'] === null) {
+            $warnings[] = 'Sin límite de palabras detectado. Sin esto, la IA tiende a expandirse.';
+        }
+
+        return [
+            'forbidden_terms' => $forbidden,
+            'word_limits' => $limits,
+            'char_count' => mb_strlen($prompt, 'UTF-8'),
+            'has_structure' => str_contains($promptLower, 'estructura') || str_contains($promptLower, 'secciones'),
+            'warnings' => $warnings,
+        ];
     }
 
     public function show(ReportType $reportType)

@@ -189,10 +189,13 @@ class AITrainingController extends Controller
 
             $generation->update(['input_content' => $inputContent]);
 
-            // Generar salida con IA
-            $result = $this->trainingService->generateOutput($training, $inputFiles);
+            // Generar salida con IA (modelo override por tipo de reporte si está configurado)
+            $modeloOverride = $reportType->model ?: null;
+            $result = $this->trainingService->generateOutput($training, $inputFiles, $modeloOverride);
 
             if ($result['success']) {
+                $validation = $result['validation'] ?? [];
+
                 $generation->update([
                     'output_content' => $result['content'],
                     'status' => 'completed',
@@ -200,6 +203,10 @@ class AITrainingController extends Controller
                     'completion_tokens' => $result['usage']['completion_tokens'] ?? null,
                     'total_tokens' => $result['usage']['total_tokens'] ?? null,
                     'generated_at' => now(),
+                    'validation_passed' => $validation['valid'] ?? true,
+                    'validation_result' => $validation,
+                    'validation_attempts' => $validation['attempts'] ?? 1,
+                    'sanitized_post_hoc' => $validation['sanitized_post_hoc'] ?? false,
                 ]);
 
                 return redirect()->route('admin.ai-training.generation.show', [$reportType, $generation])

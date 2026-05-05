@@ -22,6 +22,10 @@ class AIGeneration extends Model
         'completion_tokens',
         'total_tokens',
         'generated_at',
+        'validation_passed',
+        'validation_result',
+        'validation_attempts',
+        'sanitized_post_hoc',
     ];
 
     protected $casts = [
@@ -29,6 +33,10 @@ class AIGeneration extends Model
         'prompt_tokens' => 'integer',
         'completion_tokens' => 'integer',
         'total_tokens' => 'integer',
+        'validation_passed' => 'boolean',
+        'validation_result' => 'array',
+        'validation_attempts' => 'integer',
+        'sanitized_post_hoc' => 'boolean',
     ];
 
     /**

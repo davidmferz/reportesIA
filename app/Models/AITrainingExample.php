@@ -17,11 +17,18 @@ class AITrainingExample extends Model
         'output_content',
         'input_files_count',
         'processed_at',
+        'audit_status',
+        'audit_findings',
+        'audited_at',
+        'excluido_few_shot',
     ];
 
     protected $casts = [
         'processed_at' => 'datetime',
+        'audited_at' => 'datetime',
         'input_files_count' => 'integer',
+        'audit_findings' => 'array',
+        'excluido_few_shot' => 'boolean',
     ];
 
     /**

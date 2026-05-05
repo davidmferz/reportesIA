@@ -122,12 +122,58 @@
 
             <!-- Salida -->
             <x-crm.card>
-                <h3 class="text-lg font-bold text-hando-text-light dark:text-hando-text-dark mb-4 flex items-center">
-                    <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                    </svg>
-                    Contenido Generado
-                </h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-hando-text-light dark:text-hando-text-dark flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Contenido Generado
+                    </h3>
+                    @if(isset($generation->validation_passed))
+                        @if($generation->validation_passed)
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                ✓ Validación OK
+                                @if(($generation->validation_attempts ?? 1) > 1)
+                                    <span class="ml-1 text-[10px] opacity-75">({{ $generation->validation_attempts }} intentos)</span>
+                                @endif
+                            </span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                ⚠ Validación parcial
+                            </span>
+                        @endif
+                        @if($generation->sanitized_post_hoc)
+                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Se removieron palabras prohibidas a nivel código">
+                                🛡 Saneado
+                            </span>
+                        @endif
+                    @endif
+                </div>
+
+                @php
+                    $validationViolations = $generation->validation_result['violations'] ?? [];
+                @endphp
+                @if(!empty($validationViolations))
+                    <div class="mb-4 p-3 rounded-hando bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800">
+                        <details>
+                            <summary class="text-sm font-semibold text-yellow-800 dark:text-yellow-300 cursor-pointer">
+                                Reporte de validación ({{ count($validationViolations) }} hallazgo{{ count($validationViolations) === 1 ? '' : 's' }})
+                            </summary>
+                            <ul class="mt-2 space-y-1.5 text-xs">
+                                @foreach($validationViolations as $v)
+                                    <li class="flex items-start">
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 mt-0.5
+                                            {{ $v['severity'] === 'critical' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800' }}">
+                                            {{ strtoupper($v['severity']) }}
+                                        </span>
+                                        <span class="text-hando-gray-700 dark:text-hando-gray-300">{{ $v['detail'] }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </details>
+                    </div>
+                @endif
+
                 @if($generation->output_content)
                     <div class="bg-green-50 dark:bg-green-900/10 rounded-hando p-4 max-h-96 overflow-y-auto border border-green-200 dark:border-green-800 prose prose-sm dark:prose-invert max-w-none">
                         {!! \Illuminate\Support\Str::markdown($generation->output_content) !!}

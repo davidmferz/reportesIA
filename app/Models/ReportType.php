@@ -12,9 +12,15 @@ class ReportType extends Model
     protected $fillable = [
         'nombre',
         'prompt',
+        'model',
+        'modo_estricto',
         'created_by',
         'updated_by',
         'deleted_by',
+    ];
+
+    protected $casts = [
+        'modo_estricto' => 'boolean',
     ];
 
     protected $dates = [
