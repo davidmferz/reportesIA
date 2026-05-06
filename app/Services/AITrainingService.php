@@ -22,7 +22,6 @@ class AITrainingService
      * Límites de tokens por modelo
      */
     protected array $modelLimits = [
-        'gpt-5.5' => ['context' => 1050000, 'output' => 128000],
         'gpt-5' => ['context' => 400000, 'output' => 128000],
         'gpt-5-mini' => ['context' => 400000, 'output' => 128000],
         'gpt-5-nano' => ['context' => 400000, 'output' => 128000],
@@ -717,8 +716,7 @@ PROMPT;
     public function getAvailableModels(): array
     {
         return [
-            'gpt-5.5' => 'GPT-5.5 (Flagship, máxima calidad)',
-            'gpt-5' => 'GPT-5 (Alta calidad, balance)',
+            'gpt-5' => 'GPT-5 (Alta calidad, flagship)',
             'gpt-5-mini' => 'GPT-5 Mini (Recomendado, mejor precio/calidad)',
             'gpt-5-nano' => 'GPT-5 Nano (Ultra económico y rápido)',
             'gpt-4o' => 'GPT-4o (Legacy, mayor calidad)',
