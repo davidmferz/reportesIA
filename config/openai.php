@@ -42,8 +42,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | The timeout may be used to specify the maximum number of seconds to wait
-    | for a response. By default, the client will time out after 30 seconds.
+    | for a response. GPT-5 / o1 / o3 reasoning models can easily take 60-180s
+    | to respond because they spend tokens on internal reasoning before producing
+    | any output, so the SDK default of 30s is too low for this project.
     */
 
-    'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 30),
+    'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 300),
 ];

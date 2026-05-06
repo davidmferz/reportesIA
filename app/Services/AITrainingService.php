@@ -367,6 +367,11 @@ PROMPT;
             throw new \Exception("El entrenamiento no está listo. Estado actual: {$training->status}");
         }
 
+        // GPT-5/o1/o3 razonan antes de responder y pueden tardar 60-180s. El default
+        // de PHP (30s) mata el request antes de que termine. Levantamos el límite
+        // a 600s solo para esta operación; afecta solo al request actual, no al worker.
+        @set_time_limit(600);
+
         $model = $model ?? $this->defaultModel;
 
         // Extraer contenido de los nuevos archivos de entrada
