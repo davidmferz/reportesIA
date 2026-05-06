@@ -52,10 +52,34 @@ class AITrainingService
      */
     protected function tokenLimitParam(string $model, int $maxTokens): array
     {
-        if (str_starts_with($model, 'gpt-5') || str_starts_with($model, 'o1') || str_starts_with($model, 'o3')) {
+        if ($this->isReasoningModel($model)) {
             return ['max_completion_tokens' => $maxTokens];
         }
         return ['max_tokens' => $maxTokens];
+    }
+
+    /**
+     * GPT-5 y modelos de razonamiento (o1/o3) solo aceptan el valor por default
+     * de 'temperature' y 'top_p' (1). Mandar cualquier otro valor revienta con
+     * "Unsupported value: 'temperature' does not support X". Para GPT-4 sí
+     * podemos controlar el sampling para que la salida sea más determinística.
+     */
+    protected function samplingParams(string $model): array
+    {
+        if ($this->isReasoningModel($model)) {
+            return [];
+        }
+        return [
+            'temperature' => 0.1,
+            'top_p' => 0.9,
+        ];
+    }
+
+    protected function isReasoningModel(string $model): bool
+    {
+        return str_starts_with($model, 'gpt-5')
+            || str_starts_with($model, 'o1')
+            || str_starts_with($model, 'o3');
     }
 
     /**
@@ -435,9 +459,7 @@ PROMPT;
                 $response = OpenAI::chat()->create(array_merge([
                     'model' => $model,
                     'messages' => $messages,
-                    'temperature' => 0.1,
-                    'top_p' => 0.9,
-                ], $this->tokenLimitParam($model, $maxOutputTokens)));
+                ], $this->samplingParams($model), $this->tokenLimitParam($model, $maxOutputTokens)));
 
                 $generatedContent = $response->choices[0]->message->content ?? '';
                 $finishReason = $response->choices[0]->finishReason ?? 'unknown';
