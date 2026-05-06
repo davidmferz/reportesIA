@@ -357,7 +357,11 @@ PROMPT;
         // Calcular tokens disponibles para ejemplos
         $modelLimits = $this->modelLimits[$model] ?? $this->modelLimits[$this->defaultModel];
         $maxContextTokens = $modelLimits['context'];
-        $maxOutputTokens = min($modelLimits['output'], 8000); // Limitar salida
+        // GPT-5 incluye reasoning tokens dentro de max_completion_tokens. Si el cap es muy
+        // bajo, todos los tokens se consumen razonando y el content queda vacío.
+        // 16000 da margen para reasoning + output real. Modelos legacy (gpt-4*) no razonan,
+        // pero igual un cap más alto solo afecta si el modelo decide usarlos.
+        $maxOutputTokens = min($modelLimits['output'], 16000);
 
         // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token)
         $systemTokens = (int)(strlen($training->system_prompt) / 4);
@@ -426,7 +430,7 @@ PROMPT;
             // Loop de generación + validación + auto-corrección.
             // Iteración 0: generación inicial. Iteraciones 1..N: reintentos con feedback.
             for ($attempt = 0; $attempt <= $this->maxValidationRetries; $attempt++) {
-                Log::info("Generando con OpenAI modelo: {$model}, ejemplos: " . count($examples) . ", intento: " . ($attempt + 1));
+                Log::info("Generando con OpenAI modelo: {$model}, ejemplos: " . count($examples) . ", intento: " . ($attempt + 1) . ", max_output_tokens: {$maxOutputTokens}");
 
                 $response = OpenAI::chat()->create(array_merge([
                     'model' => $model,
@@ -435,10 +439,37 @@ PROMPT;
                     'top_p' => 0.9,
                 ], $this->tokenLimitParam($model, $maxOutputTokens)));
 
-                $generatedContent = $response->choices[0]->message->content;
+                $generatedContent = $response->choices[0]->message->content ?? '';
+                $finishReason = $response->choices[0]->finishReason ?? 'unknown';
                 $totalUsage['prompt_tokens'] += $response->usage->promptTokens;
                 $totalUsage['completion_tokens'] += $response->usage->completionTokens;
                 $totalUsage['total_tokens'] += $response->usage->totalTokens;
+
+                // GPT-5/o1/o3 incluyen tokens de razonamiento dentro de completion_tokens.
+                // Si reasoning_tokens consume todo el límite, content viene vacío con finish_reason="length".
+                $rawResponse = $response->toArray();
+                $reasoningTokens = $rawResponse['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0;
+
+                Log::info("Respuesta OpenAI: finish_reason={$finishReason}, completion_tokens={$response->usage->completionTokens}, reasoning_tokens={$reasoningTokens}, content_length=" . strlen(trim($generatedContent)));
+
+                // Si el modelo devuelve contenido vacío, no tiene sentido validar ni reintentar
+                // — eso solo gasta más tokens. Detectamos la causa raíz y devolvemos error claro.
+                if (trim($generatedContent) === '') {
+                    Log::error("Modelo {$model} devolvió contenido vacío. finish_reason={$finishReason}, reasoning_tokens={$reasoningTokens}, max_output={$maxOutputTokens}. Raw response: " . json_encode($rawResponse));
+
+                    if ($finishReason === 'length') {
+                        $errorDetail = "El modelo {$model} agotó el límite de tokens ({$maxOutputTokens}) antes de generar contenido"
+                            . ($reasoningTokens > 0 ? " — gastó {$reasoningTokens} tokens en razonamiento interno." : ".")
+                            . " Probá con un modelo más liviano (gpt-5-mini o gpt-5-nano) o reducí el tamaño del prompt/entrada.";
+                    } else {
+                        $errorDetail = "El modelo {$model} devolvió una respuesta vacía (finish_reason={$finishReason}). Probá nuevamente o cambiá de modelo.";
+                    }
+
+                    return [
+                        'success' => false,
+                        'error' => $errorDetail,
+                    ];
+                }
 
                 $validation = $this->validator->validate($generatedContent, $customPrompt);
                 $validationHistory[] = [

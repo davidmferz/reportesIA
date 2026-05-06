@@ -47,6 +47,37 @@
         </div>
         @endif
 
+        @if(session('error'))
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-hando">
+                <div class="flex items-start gap-3">
+                    <svg width="20" height="20" class="flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" style="width:20px;height:20px;min-width:20px" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+                    </svg>
+                    <div class="flex-1">
+                        <p class="text-sm font-semibold text-red-800 dark:text-red-200">Error al generar</p>
+                        <p class="text-sm text-red-700 dark:text-red-300 mt-1">{{ session('error') }}</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if(session('success'))
+            <div class="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-hando">
+                <p class="text-sm text-green-800 dark:text-green-200">{{ session('success') }}</p>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-hando">
+                <p class="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">Revisá los siguientes campos:</p>
+                <ul class="list-disc list-inside text-sm text-red-700 dark:text-red-300">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <x-crm.card>
             <form action="{{ route('admin.ai-training.generate.store', $reportType) }}"
                   method="POST"
