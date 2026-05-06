@@ -16,12 +16,16 @@ class AITrainingService
     /**
      * Modelo por defecto de OpenAI a utilizar
      */
-    protected string $defaultModel = 'gpt-4o';
+    protected string $defaultModel = 'gpt-5-mini';
 
     /**
      * Límites de tokens por modelo
      */
     protected array $modelLimits = [
+        'gpt-5.5' => ['context' => 1050000, 'output' => 128000],
+        'gpt-5' => ['context' => 400000, 'output' => 128000],
+        'gpt-5-mini' => ['context' => 400000, 'output' => 128000],
+        'gpt-5-nano' => ['context' => 400000, 'output' => 128000],
         'gpt-4o-mini' => ['context' => 128000, 'output' => 16384],
         'gpt-4o' => ['context' => 128000, 'output' => 16384],
         'gpt-4-turbo' => ['context' => 128000, 'output' => 4096],
@@ -713,10 +717,14 @@ PROMPT;
     public function getAvailableModels(): array
     {
         return [
-            'gpt-4o-mini' => 'GPT-4o Mini (Rápido y económico)',
-            'gpt-4o' => 'GPT-4o (Mayor calidad)',
-            'gpt-4-turbo' => 'GPT-4 Turbo (Potente)',
-            'gpt-3.5-turbo' => 'GPT-3.5 Turbo (Más económico)',
+            'gpt-5.5' => 'GPT-5.5 (Flagship, máxima calidad)',
+            'gpt-5' => 'GPT-5 (Alta calidad, balance)',
+            'gpt-5-mini' => 'GPT-5 Mini (Recomendado, mejor precio/calidad)',
+            'gpt-5-nano' => 'GPT-5 Nano (Ultra económico y rápido)',
+            'gpt-4o' => 'GPT-4o (Legacy, mayor calidad)',
+            'gpt-4o-mini' => 'GPT-4o Mini (Legacy, rápido)',
+            'gpt-4-turbo' => 'GPT-4 Turbo (Legacy)',
+            'gpt-3.5-turbo' => 'GPT-3.5 Turbo (Legacy, económico)',
         ];
     }
 
@@ -727,7 +735,7 @@ PROMPT;
     {
         try {
             $response = OpenAI::chat()->create([
-                'model' => 'gpt-4o-mini',
+                'model' => 'gpt-5-nano',
                 'messages' => [['role' => 'user', 'content' => 'OK']],
                 'max_tokens' => 3,
             ]);

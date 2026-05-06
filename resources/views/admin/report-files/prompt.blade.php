@@ -65,11 +65,11 @@
                             <div>
                                 <x-hando-label for="model" value="Modelo de IA" />
                                 <p class="text-xs text-hando-gray-500 dark:text-hando-gray-400 mb-2">
-                                    El modelo que usará para este reporte. <code>gpt-4o</code> respeta mejor las restricciones.
+                                    El modelo que usará para este reporte. <code>gpt-5-mini</code> ofrece la mejor relación precio/calidad.
                                 </p>
                                 <select id="model" name="model"
                                     class="w-full px-3 py-2 text-sm border border-hando-border-light dark:border-hando-border-dark rounded-hando bg-white dark:bg-hando-gray-800 text-hando-text-light dark:text-hando-text-dark focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all">
-                                    <option value="">Default del sistema (gpt-4o)</option>
+                                    <option value="">Default del sistema (gpt-5-mini)</option>
                                     @foreach($availableModels as $value => $label)
                                         <option value="{{ $value }}" @selected($reportType->model === $value)>{{ $label }}</option>
                                     @endforeach

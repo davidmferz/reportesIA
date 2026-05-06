@@ -45,7 +45,7 @@ class ReportTypeFileController extends Controller
     {
         $validated = $request->validate([
             'prompt' => 'nullable|string|max:65535',
-            'model' => 'nullable|string|in:gpt-4o,gpt-4o-mini,gpt-4-turbo,gpt-3.5-turbo',
+            'model' => 'nullable|string|in:gpt-5.5,gpt-5,gpt-5-mini,gpt-5-nano,gpt-4o,gpt-4o-mini,gpt-4-turbo,gpt-3.5-turbo',
             'modo_estricto' => 'nullable|boolean',
         ], [
             'prompt.max' => 'El prompt no puede tener más de 65535 caracteres.',
