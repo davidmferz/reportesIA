@@ -46,6 +46,19 @@ class AITrainingService
     }
 
     /**
+     * GPT-5 (y modelos de razonamiento o1/o3) cambiaron el nombre del parámetro:
+     * 'max_tokens' fue reemplazado por 'max_completion_tokens'. GPT-4 y anteriores
+     * todavía aceptan el viejo. Devolvemos el array con el nombre correcto según el modelo.
+     */
+    protected function tokenLimitParam(string $model, int $maxTokens): array
+    {
+        if (str_starts_with($model, 'gpt-5') || str_starts_with($model, 'o1') || str_starts_with($model, 'o3')) {
+            return ['max_completion_tokens' => $maxTokens];
+        }
+        return ['max_tokens' => $maxTokens];
+    }
+
+    /**
      * Procesa todos los ejemplos de entrenamiento de un tipo de reporte
      * y crea/actualiza el entrenamiento de IA
      */
@@ -415,13 +428,12 @@ PROMPT;
             for ($attempt = 0; $attempt <= $this->maxValidationRetries; $attempt++) {
                 Log::info("Generando con OpenAI modelo: {$model}, ejemplos: " . count($examples) . ", intento: " . ($attempt + 1));
 
-                $response = OpenAI::chat()->create([
+                $response = OpenAI::chat()->create(array_merge([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_tokens' => $maxOutputTokens,
                     'temperature' => 0.1,
                     'top_p' => 0.9,
-                ]);
+                ], $this->tokenLimitParam($model, $maxOutputTokens)));
 
                 $generatedContent = $response->choices[0]->message->content;
                 $totalUsage['prompt_tokens'] += $response->usage->promptTokens;
@@ -732,11 +744,10 @@ PROMPT;
     public function checkOpenAIStatus(): array
     {
         try {
-            $response = OpenAI::chat()->create([
+            $response = OpenAI::chat()->create(array_merge([
                 'model' => 'gpt-5-nano',
                 'messages' => [['role' => 'user', 'content' => 'OK']],
-                'max_tokens' => 3,
-            ]);
+            ], $this->tokenLimitParam('gpt-5-nano', 16)));
 
             return [
                 'ok' => true,
