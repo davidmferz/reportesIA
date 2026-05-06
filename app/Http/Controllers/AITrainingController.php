@@ -207,6 +207,7 @@ class AITrainingController extends Controller
                     'validation_result' => $validation,
                     'validation_attempts' => $validation['attempts'] ?? 1,
                     'sanitized_post_hoc' => $validation['sanitized_post_hoc'] ?? false,
+                    'truncated_post_hoc' => $validation['truncated_post_hoc'] ?? false,
                 ]);
 
                 return redirect()->route('admin.ai-training.generation.show', [$reportType, $generation])

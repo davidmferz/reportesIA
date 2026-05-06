@@ -26,6 +26,7 @@ class AIGeneration extends Model
         'validation_result',
         'validation_attempts',
         'sanitized_post_hoc',
+        'truncated_post_hoc',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class AIGeneration extends Model
         'validation_result' => 'array',
         'validation_attempts' => 'integer',
         'sanitized_post_hoc' => 'boolean',
+        'truncated_post_hoc' => 'boolean',
     ];
 
     /**

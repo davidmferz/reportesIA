@@ -147,6 +147,11 @@
                                 🛡 Saneado
                             </span>
                         @endif
+                        @if($generation->truncated_post_hoc ?? false)
+                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" title="Se cortó al límite de palabras a nivel código tras los reintentos">
+                                ✂ Truncado
+                            </span>
+                        @endif
                     @endif
                 </div>
 

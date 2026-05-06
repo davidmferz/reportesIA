@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\ForbiddenWordController;
 use App\Http\Controllers\ReportTypeController;
 use App\Http\Controllers\ReportTypeFileController;
 use App\Http\Controllers\AITrainingController;
@@ -37,6 +38,10 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('report-types', ReportTypeController::class);
+
+    // Palabras prohibidas globales (se inyectan en TODOS los prompts)
+    Route::resource('forbidden-words', ForbiddenWordController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
 
     // Rutas para gestión de capítulos de tipos de reportes
     Route::get('report-types/{reportType}/chapters', [ChapterController::class, 'index'])->name('chapters.index');

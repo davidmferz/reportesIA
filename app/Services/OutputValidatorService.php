@@ -26,7 +26,13 @@ class OutputValidatorService
     public function validate(string $output, ?string $customPrompt): array
     {
         $violations = [];
-        $forbiddenTerms = $this->parser->extractForbiddenTerms($customPrompt);
+        // Combinamos las palabras prohibidas extraídas del prompt del cliente con la
+        // lista global del módulo admin. Las globales aplican siempre, sin importar
+        // qué prompt se use, así un editor puede prohibir términos a nivel sistema.
+        $forbiddenTerms = array_values(array_unique(array_merge(
+            $this->parser->extractForbiddenTerms($customPrompt),
+            \App\Models\ForbiddenWord::activeWords()
+        )));
         $limits = $this->parser->extractWordLimits($customPrompt);
 
         $cleanOutput = strip_tags($output);
@@ -202,7 +208,15 @@ class OutputValidatorService
 
         foreach ($violations as $v) {
             if ($v['type'] === 'word_limit_exceeded') {
-                $lines[] = "- {$v['detail']}. Reescribí más conciso, sin perder información esencial.";
+                // Los LLMs cuentan tokens, no palabras, y "sé más conciso" rara vez los lleva
+                // a un número específico. Damos un objetivo concreto 10% por debajo del máximo
+                // para que tengan margen y aún así no excedan después de su propio "ajuste".
+                if ($limits['max'] !== null) {
+                    $target = max(50, (int) floor($limits['max'] * 0.9));
+                    $lines[] = "- Generaste {$wordCount} palabras y el LÍMITE DURO es {$limits['max']}. APUNTÁ a {$target} palabras (10% por debajo del máximo, te deja margen). Cortá información secundaria, NO la esencial. Contá las palabras al terminar y verificá que no superes {$limits['max']}.";
+                } else {
+                    $lines[] = "- {$v['detail']}. Reescribí más conciso, sin perder información esencial.";
+                }
             }
             if ($v['type'] === 'word_limit_below') {
                 $lines[] = "- {$v['detail']}. NO rellenes con conocimiento externo: solo desarrollá lo que está en la entrada.";

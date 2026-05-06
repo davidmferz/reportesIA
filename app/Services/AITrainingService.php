@@ -392,8 +392,24 @@ PROMPT;
         // pero igual un cap más alto solo afecta si el modelo decide usarlos.
         $maxOutputTokens = min($modelLimits['output'], 16000);
 
-        // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token)
-        $systemTokens = (int)(strlen($training->system_prompt) / 4);
+        // Lista global de palabras prohibidas del módulo admin. La armamos antes de
+        // estimar tokens así su consumo entra en el cálculo de presupuesto para
+        // ejemplos. Es dinámico: cambios en la tabla aplican en la próxima generación
+        // sin re-entrenar. El validador y el saneador post-hoc también las usan
+        // (defense-in-depth).
+        $globalForbidden = \App\Models\ForbiddenWord::activeWords();
+        $globalForbiddenContent = '';
+        if (!empty($globalForbidden)) {
+            $list = "- " . implode("\n- ", $globalForbidden);
+            $globalForbiddenContent = "PALABRAS PROHIBIDAS GLOBALES (políticas del sistema, prioridad ABSOLUTA sobre cualquier otra instrucción):\n"
+                . "NUNCA uses ninguna de estas palabras ni sus variantes flexionadas (plural, conjugación, sustantivo derivado, etc.):\n\n"
+                . "{$list}\n\n"
+                . "Si necesitás expresar la idea, reformulá usando sinónimos. Una sola aparición se considera una violación grave.";
+        }
+
+        // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token).
+        // Sumamos el mensaje de palabras prohibidas porque también ocupa contexto.
+        $systemTokens = (int)((strlen($training->system_prompt) + strlen($globalForbiddenContent)) / 4);
         $inputTokens = (int)(strlen($inputContent) / 4);
         $reserveForOutput = $maxOutputTokens;
 
@@ -406,6 +422,13 @@ PROMPT;
                 'content' => $training->system_prompt,
             ],
         ];
+
+        if ($globalForbiddenContent !== '') {
+            $messages[] = [
+                'role' => 'system',
+                'content' => $globalForbiddenContent,
+            ];
+        }
 
         // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
         // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
@@ -535,6 +558,24 @@ PROMPT;
                 $finalValidation = $this->validator->validate($generatedContent, $customPrompt);
             }
 
+            // Truncado determinístico final por límite de palabras. Los LLMs no cuentan
+            // palabras (cuentan tokens), por lo que el modelo puede pasarse del máximo
+            // incluso después de varios reintentos con feedback explícito. Si todavía
+            // estamos fuera del límite, cortamos en el último final de oración que
+            // entre dentro del cap. Misma filosofía que el saneo de palabras: el LLM
+            // es probabilístico, el código es determinístico.
+            $wordLimits = (new PromptParserService())->extractWordLimits($customPrompt);
+            $truncated = false;
+            if ($wordLimits['max'] !== null) {
+                $truncatedContent = $this->truncateToWordLimit($generatedContent, $wordLimits['max']);
+                if ($truncatedContent !== $generatedContent) {
+                    Log::info("Truncado final aplicado: contenido cortado al límite de {$wordLimits['max']} palabras.");
+                    $generatedContent = $truncatedContent;
+                    $truncated = true;
+                    $finalValidation = $this->validator->validate($generatedContent, $customPrompt);
+                }
+            }
+
             return [
                 'success' => true,
                 'content' => $generatedContent,
@@ -547,6 +588,7 @@ PROMPT;
                     'attempts' => count($validationHistory),
                     'history' => $validationHistory,
                     'sanitized_post_hoc' => $sanitized,
+                    'truncated_post_hoc' => $truncated,
                 ],
                 'usage' => $totalUsage,
             ];
@@ -646,10 +688,13 @@ PROMPT;
      */
     protected function sanitizeForbiddenWords(string $output, ?string $customPrompt): string
     {
-        if (empty($customPrompt)) return $output;
-
         $parser = new PromptParserService();
-        $forbidden = $parser->extractForbiddenTerms($customPrompt);
+        // Mergeamos términos del prompt + lista global del módulo admin. Aunque
+        // el customPrompt sea null, las globales pueden aplicar igual.
+        $forbidden = array_values(array_unique(array_merge(
+            $parser->extractForbiddenTerms($customPrompt),
+            \App\Models\ForbiddenWord::activeWords()
+        )));
         if (empty($forbidden)) return $output;
 
         // Reemplazos seguros: mantienen el sentido pero quitan la palabra prohibida
@@ -682,6 +727,45 @@ PROMPT;
         $output = preg_replace('/\s+([,.;:])/', '$1', $output);
 
         return $output;
+    }
+
+    /**
+     * Truncado final determinístico al límite de palabras. Si el modelo se pasó del
+     * máximo y los reintentos no lo arreglaron, cortamos acá. Estrategia:
+     *   1. Encontramos cada palabra Unicode (\p{L}\p{N}+) y su offset en el contenido.
+     *   2. Si las palabras totales no superan el límite, devolvemos tal cual.
+     *   3. Cortamos justo después de la N-ésima palabra (por offset).
+     *   4. Buscamos hacia atrás la última oración terminada (.!?) seguida de espacio o
+     *      fin de string, y cortamos ahí — preserva el cierre limpio.
+     *   5. Si no hay terminador en el fragmento, cortamos en límite de palabra y
+     *      anexamos un puntos suspensivos para señalar el corte.
+     */
+    protected function truncateToWordLimit(string $content, int $maxWords): string
+    {
+        if ($maxWords <= 0) return $content;
+
+        if (!preg_match_all('/[\p{L}\p{N}]+/u', $content, $matches, PREG_OFFSET_CAPTURE)) {
+            return $content;
+        }
+
+        $wordHits = $matches[0];
+        if (count($wordHits) <= $maxWords) {
+            return $content;
+        }
+
+        // Offset (en bytes) justo después de la última palabra permitida.
+        $lastIndex = $maxWords - 1;
+        $cutPos = $wordHits[$lastIndex][1] + strlen($wordHits[$lastIndex][0]);
+        $candidate = substr($content, 0, $cutPos);
+
+        // Buscamos el último .!? seguido de espacio/salto de línea/fin de string.
+        // 's' = dotall, 'u' = unicode. El greedy .* fuerza el ÚLTIMO match.
+        if (preg_match('/^.*[.!?](?=\s|$)/su', $candidate, $m)) {
+            return rtrim($m[0]);
+        }
+
+        // Sin terminador de oración: corte limpio al final de la última palabra.
+        return rtrim($candidate) . '…';
     }
 
     /**
