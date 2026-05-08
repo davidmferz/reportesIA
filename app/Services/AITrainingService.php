@@ -436,9 +436,17 @@ PROMPT;
         // (palabras prohibidas, secciones extra, justificaciones) que el cliente
         // explícitamente rechaza.
         $modoEstricto = (bool) ($training->reportType->modo_estricto ?? false);
+        // Pre-extraemos los límites de palabras del prompt del cliente para que el
+        // truncado de los few-shot escale con el pedido. Sin esto, un cap fijo
+        // (ej. 4000 chars ≈ 600 palabras) ahorca al modelo cuando el usuario pide
+        // ">2000 palabras" — el few-shot demuestra una longitud que CONTRADICE la
+        // instrucción y la IA imita el ejemplo, no la regla.
+        $wordLimitsForExamples = (new PromptParserService())->extractWordLimits(
+            $training->reportType->prompt ?? null
+        );
         $examples = $modoEstricto
             ? []
-            : $this->selectBestExamples($training, $inputContent, $availableForExamples);
+            : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples);
 
         foreach ($examples as $example) {
             $messages[] = [
@@ -635,9 +643,17 @@ PROMPT;
     }
 
     /**
-     * Selecciona los mejores ejemplos para el contexto dado el límite de tokens
+     * Selecciona los mejores ejemplos para el contexto dado el límite de tokens.
+     *
+     * Los caps de truncado escalan con el pedido del usuario: si el prompt pide
+     * "más de N palabras" como mínimo, el output del ejemplo tiene que demostrar
+     * AL MENOS N palabras — sino el few-shot contradice la instrucción y la IA
+     * imita el ejemplo, ignorando el "más de N". Asumimos ~8 chars/palabra en
+     * español (con margen) para convertir el límite a chars.
+     *
+     * @param array{min: int|null, max: int|null} $wordLimits
      */
-    protected function selectBestExamples(AITraining $training, string $newInput, int $maxTokens): array
+    protected function selectBestExamples(AITraining $training, string $newInput, int $maxTokens, array $wordLimits = ['min' => null, 'max' => null]): array
     {
         // Excluir ejemplos marcados como contaminados o explícitamente excluidos
         // por la auditoría (Fase 3): arrastran al modelo hacia patrones rechazados.
@@ -646,22 +662,42 @@ PROMPT;
             ->where('audit_status', '!=', 'contaminated')
             ->get();
 
+        // Caps por defecto subidos: con gpt-5-* tenemos 400K tokens de contexto.
+        // El cap viejo (4000 chars) era residual de cuando el contexto era estrecho.
+        // Si el usuario fijó un mínimo de palabras, el ejemplo tiene que cubrirlo
+        // para no enseñarle al modelo una longitud más corta que la pedida.
+        $defaultInputCap = 8000;
+        $defaultOutputCap = 16000;
+        if ($wordLimits['min'] !== null) {
+            $defaultOutputCap = max($defaultOutputCap, (int) ($wordLimits['min'] * 8));
+        }
+        if ($wordLimits['max'] !== null) {
+            // Si hay máximo, no hace falta mostrar más que ese tope (con margen).
+            $defaultOutputCap = min($defaultOutputCap, (int) ($wordLimits['max'] * 8));
+        }
+
+        // Caps de fallback (cuando el primer ejemplo no entra entero en el budget).
+        // Mantienen al menos la mitad del default para que el ejemplo siga siendo
+        // representativo en longitud.
+        $fallbackInputCap = (int) ($defaultInputCap / 2);
+        $fallbackOutputCap = (int) ($defaultOutputCap / 2);
+
         $selectedExamples = [];
         $usedTokens = 0;
 
         // Por ahora, seleccionar los más recientes que quepan
         // En el futuro se podría implementar similitud semántica
         foreach ($examples as $example) {
-            $inputTruncated = $this->smartTruncate($example->input_content, 3000);
-            $outputTruncated = $this->smartTruncate($example->output_content, 4000);
+            $inputTruncated = $this->smartTruncate($example->input_content, $defaultInputCap);
+            $outputTruncated = $this->smartTruncate($example->output_content, $defaultOutputCap);
 
             $exampleTokens = (int)((strlen($inputTruncated) + strlen($outputTruncated)) / 4);
 
             if ($usedTokens + $exampleTokens > $maxTokens) {
                 // Si es el primer ejemplo, al menos incluir uno truncado más agresivamente
                 if (empty($selectedExamples)) {
-                    $inputTruncated = $this->smartTruncate($example->input_content, 1500);
-                    $outputTruncated = $this->smartTruncate($example->output_content, 2000);
+                    $inputTruncated = $this->smartTruncate($example->input_content, $fallbackInputCap);
+                    $outputTruncated = $this->smartTruncate($example->output_content, $fallbackOutputCap);
                     $selectedExamples[] = [
                         'capitulo' => $example->capitulo,
                         'input' => $inputTruncated,
