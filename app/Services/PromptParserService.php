@@ -60,6 +60,12 @@ class PromptParserService
         if (preg_match('/(?:m[íi]nimo|m[íi]n|al\s+menos)\s*(?:de\s*)?(\d{2,5})\s*palabras/ui', $prompt, $m)) {
             $limits['min'] = (int) $m[1];
         }
+        // "más de N palabras" / "mayor a/que N palabras" → mínimo. El lookbehind
+        // (?<!no\s) evita capturar "no más de N" / "no mayor a N" — esos son máximos
+        // y los captura el primer regex.
+        if (preg_match('/(?<!no\s)(?:m[áa]s\s+(?:de|que)|mayor\s+(?:a|que))\s+(\d{2,5})\s*palabras/ui', $prompt, $m)) {
+            $limits['min'] = (int) $m[1];
+        }
         if (preg_match('/(\d{2,5})\s*(?:a|-|hasta)\s*(\d{2,5})\s*palabras/ui', $prompt, $m)) {
             $limits['min'] = (int) $m[1];
             $limits['max'] = (int) $m[2];

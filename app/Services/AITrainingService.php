@@ -350,10 +350,11 @@ PROMPT;
             $patterns[] = "**Formato:** Los documentos incluyen listas numeradas o con viñetas";
         }
 
-        // Estimar longitud promedio
-        $avgLength = array_sum(array_map('strlen', $outputContents)) / count($outputContents);
-        $lengthDesc = $avgLength < 1000 ? 'corta' : ($avgLength < 5000 ? 'media' : 'extensa');
-        $patterns[] = "\n**Longitud típica:** Los documentos de salida tienen una extensión {$lengthDesc} (aprox. " . number_format($avgLength) . " caracteres)";
+        // Nota: NO inyectamos "longitud típica" calculada de los ejemplos. Si el usuario
+        // pide longitud explícita en su prompt (p. ej. "más de 2000 palabras"), una línea
+        // contradictoria acá ("extensión corta, ~51 caracteres") confunde al modelo.
+        // La longitud real está cubierta por: (1) validación + reintentos con feedback,
+        // (2) truncado post-hoc, (3) los propios ejemplos few-shot que la IA ve.
 
         return implode("\n", $patterns);
     }
