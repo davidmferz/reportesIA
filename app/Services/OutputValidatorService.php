@@ -61,11 +61,16 @@ class OutputValidatorService
         }
 
         // 3. Límite de palabras (mín)
+        // Severidad CRITICAL para mantener simetría con word_limit_exceeded y disparar
+        // reintento con feedback. El feedback en buildFeedbackForAI ya advierte explícitamente
+        // "NO rellenes con conocimiento externo: solo desarrollá lo que está en la entrada",
+        // así que escalar a critical no fomenta invención — solo fuerza al modelo a expandir
+        // sobre la entrada provista.
         if ($limits['min'] !== null && $wordCount < $limits['min']) {
             $faltan = $limits['min'] - $wordCount;
             $violations[] = [
                 'type' => 'word_limit_below',
-                'severity' => 'warning',
+                'severity' => 'critical',
                 'detail' => "Por debajo del mínimo de {$limits['min']} palabras (faltan {$faltan})",
             ];
         }
