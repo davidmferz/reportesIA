@@ -75,6 +75,16 @@ class PromptParserService
             $limits['min'] = $limits['min'] ?? (int) $m[1];
         }
 
+        // Si extraemos min Y max y resultan contradictorios (min > max), el max
+        // casi seguro pertenece a una restricción de sección (ej:
+        // "Introducción (máximo 300 palabras)") y NO al documento entero.
+        // El parser es ciego al scope, así que acá descartamos el max para que
+        // el validador y el truncado post-hoc no corten el documento al límite
+        // de una sección. Preservamos min, que es el pedido global del usuario.
+        if ($limits['min'] !== null && $limits['max'] !== null && $limits['min'] > $limits['max']) {
+            $limits['max'] = null;
+        }
+
         return $limits;
     }
 
