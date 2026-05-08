@@ -228,7 +228,7 @@
                                 </svg>
                                 <div>
                                     <p class="text-sm font-bold text-green-900 dark:text-green-100">Generando documento con IA...</p>
-                                    <p class="text-xs text-green-700 dark:text-green-300">Esto puede tardar hasta un minuto.</p>
+                                    <p class="text-xs text-green-700 dark:text-green-300">Esto puede tardar varios minutos.</p>
                                 </div>
                             </div>
                             <div class="mt-3 w-full bg-green-200 dark:bg-green-800 rounded-full h-2 overflow-hidden">
