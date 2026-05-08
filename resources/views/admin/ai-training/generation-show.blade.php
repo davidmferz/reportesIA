@@ -106,6 +106,155 @@
             @endif
         </x-crm.card>
 
+        @php
+            $promptMessages = $generation->prompt_messages ?? [];
+
+            $systemMessages = [];
+            $exampleMessages = [];
+            $finalUserMessage = null;
+
+            if (!empty($promptMessages)) {
+                $lastUserIndex = null;
+                foreach ($promptMessages as $idx => $msg) {
+                    if (($msg['role'] ?? null) === 'user') {
+                        $lastUserIndex = $idx;
+                    }
+                }
+
+                foreach ($promptMessages as $idx => $msg) {
+                    $role = $msg['role'] ?? 'unknown';
+                    if ($role === 'system') {
+                        $systemMessages[] = $msg;
+                    } elseif ($idx === $lastUserIndex) {
+                        $finalUserMessage = $msg;
+                    } else {
+                        $exampleMessages[] = $msg;
+                    }
+                }
+            }
+
+            $messageCount = count($promptMessages);
+        @endphp
+
+        <!-- Prompt enviado a la IA (colapsable) -->
+        <x-crm.card>
+            <details class="group">
+                <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                        </svg>
+                        <h3 class="text-lg font-bold text-hando-text-light dark:text-hando-text-dark">
+                            Prompt enviado a la IA
+                        </h3>
+                        @if($messageCount > 0)
+                            <span class="ml-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                                {{ $messageCount }} {{ $messageCount === 1 ? 'mensaje' : 'mensajes' }}
+                            </span>
+                        @endif
+                    </div>
+                    <span class="flex items-center text-sm text-hando-gray-500 dark:text-hando-gray-400 group-hover:text-hando-primary">
+                        <span class="group-open:hidden">Mostrar</span>
+                        <span class="hidden group-open:inline">Ocultar</span>
+                        <svg class="w-4 h-4 ml-1 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </span>
+                </summary>
+
+                <div class="mt-5 space-y-5">
+                    @if(empty($promptMessages))
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-6 text-center border border-dashed border-hando-gray-300 dark:border-hando-gray-700">
+                            <svg class="w-10 h-10 text-hando-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-sm font-medium text-hando-gray-600 dark:text-hando-gray-400">Prompt no disponible</p>
+                            <p class="text-xs text-hando-gray-500 mt-1">Esta generación es anterior a la captura de prompts. Las generaciones nuevas guardan automáticamente lo enviado a la IA.</p>
+                        </div>
+                    @else
+                        <p class="text-xs text-hando-gray-500 dark:text-hando-gray-400 italic">
+                            Snapshot del primer envío a OpenAI. Los reintentos por validación quedan registrados en el reporte de validación.
+                        </p>
+
+                        @foreach($systemMessages as $sysIdx => $sysMsg)
+                            <div class="rounded-hando border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/10 overflow-hidden">
+                                <div class="flex items-center justify-between px-4 py-2 bg-purple-100 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-800">
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-100">System</span>
+                                        <span class="ml-2 text-sm font-semibold text-purple-900 dark:text-purple-200">
+                                            @if($sysIdx === 0)
+                                                Instrucciones del entrenamiento
+                                            @else
+                                                Palabras prohibidas globales
+                                            @endif
+                                        </span>
+                                    </div>
+                                    <span class="text-[10px] text-purple-600 dark:text-purple-400">
+                                        {{ number_format(strlen($sysMsg['content'] ?? '')) }} chars
+                                    </span>
+                                </div>
+                                <div class="p-4 max-h-72 overflow-y-auto">
+                                    <pre class="text-xs text-hando-gray-700 dark:text-hando-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{{ $sysMsg['content'] ?? '' }}</pre>
+                                </div>
+                            </div>
+                        @endforeach
+
+                        @if(!empty($exampleMessages))
+                            @php $exampleCount = (int) floor(count($exampleMessages) / 2); @endphp
+                            <details class="group/ex rounded-hando border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+                                <summary class="flex items-center justify-between px-4 py-2 bg-amber-100 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 cursor-pointer list-none">
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100">Few-shot</span>
+                                        <span class="ml-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                            Ejemplos de referencia
+                                        </span>
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-200/60 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                                            {{ $exampleCount }} {{ $exampleCount === 1 ? 'ejemplo' : 'ejemplos' }}
+                                        </span>
+                                    </div>
+                                    <svg class="w-4 h-4 text-amber-700 dark:text-amber-400 transition-transform group-open/ex:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </summary>
+                                <div class="p-4 space-y-3">
+                                    @foreach($exampleMessages as $exMsg)
+                                        @php $isUser = ($exMsg['role'] ?? '') === 'user'; @endphp
+                                        <div class="rounded border {{ $isUser ? 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10' : 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10' }}">
+                                            <div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider {{ $isUser ? 'text-blue-700 dark:text-blue-300' : 'text-green-700 dark:text-green-300' }}">
+                                                {{ $isUser ? 'Entrada de ejemplo' : 'Salida de ejemplo' }}
+                                            </div>
+                                            <div class="px-3 pb-2 max-h-48 overflow-y-auto">
+                                                <pre class="text-[11px] text-hando-gray-700 dark:text-hando-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{{ $exMsg['content'] ?? '' }}</pre>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </details>
+                        @endif
+
+                        @if($finalUserMessage)
+                            <div class="rounded-hando border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10 overflow-hidden">
+                                <div class="flex items-center justify-between px-4 py-2 bg-blue-100 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800">
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-100">User</span>
+                                        <span class="ml-2 text-sm font-semibold text-blue-900 dark:text-blue-200">
+                                            Entrada a procesar
+                                        </span>
+                                    </div>
+                                    <span class="text-[10px] text-blue-600 dark:text-blue-400">
+                                        {{ number_format(strlen($finalUserMessage['content'] ?? '')) }} chars
+                                    </span>
+                                </div>
+                                <div class="p-4 max-h-72 overflow-y-auto">
+                                    <pre class="text-xs text-hando-gray-700 dark:text-hando-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{{ $finalUserMessage['content'] ?? '' }}</pre>
+                                </div>
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            </details>
+        </x-crm.card>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Entrada -->
             <x-crm.card>

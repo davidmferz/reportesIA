@@ -479,6 +479,11 @@ PROMPT;
             $validationHistory = [];
             $finalValidation = null;
 
+            // Snapshot del prompt enviado en el primer intento. Se persiste en la
+            // generación para auditoría/UI. No incluye los reintentos con feedback
+            // (esos quedan en validation_result.history).
+            $promptMessagesSnapshot = $messages;
+
             // Loop de generación + validación + auto-corrección.
             // Iteración 0: generación inicial. Iteraciones 1..N: reintentos con feedback.
             for ($attempt = 0; $attempt <= $this->maxValidationRetries; $attempt++) {
@@ -591,6 +596,7 @@ PROMPT;
                     'truncated_post_hoc' => $truncated,
                 ],
                 'usage' => $totalUsage,
+                'prompt_messages' => $promptMessagesSnapshot,
             ];
 
         } catch (\OpenAI\Exceptions\RateLimitException $e) {
