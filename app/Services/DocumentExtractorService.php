@@ -57,26 +57,67 @@ class DocumentExtractorService
             $text = '';
 
             foreach ($phpWord->getSections() as $section) {
+                foreach ($section->getHeaders() as $header) {
+                    foreach ($header->getElements() as $element) {
+                        $text .= $this->extractTextFromElement($element) . "\n";
+                    }
+                }
+
                 foreach ($section->getElements() as $element) {
                     $text .= $this->extractTextFromElement($element) . "\n";
+                }
+
+                foreach ($section->getFooters() as $footer) {
+                    foreach ($footer->getElements() as $element) {
+                        $text .= $this->extractTextFromElement($element) . "\n";
+                    }
                 }
             }
 
             return trim($text);
-        } catch (\Exception $e) {
-            return "[Error al extraer DOCX: {$e->getMessage()}]";
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("Falló la extracción del DOCX: {$e->getMessage()}", 0, $e);
         }
     }
 
     /**
-     * Extrae texto de elementos de PhpWord recursivamente
+     * Extrae texto de elementos de PhpWord recursivamente.
+     *
+     * Histórico: este método tragaba contenido entero. (1) Table no tiene getElements()
+     * sino getRows()/getCells(), así que el recursor no bajaba a celdas — el cuerpo del
+     * docx (muchas veces maquetado dentro de tablas) se perdía. (2) Algunos elementos
+     * devuelven array en getText(), y el ".= array" tira "Array to string conversion"
+     * que el catch superior convertía en mensaje "[Error al extraer...]" guardado como
+     * si fuera contenido válido. Ahora: bajamos a tablas y defendemos getText() arrays.
      */
     protected function extractTextFromElement($element): string
     {
         $text = '';
 
+        if ($element instanceof \PhpOffice\PhpWord\Element\Table) {
+            foreach ($element->getRows() as $row) {
+                foreach ($row->getCells() as $cell) {
+                    foreach ($cell->getElements() as $cellElement) {
+                        $text .= $this->extractTextFromElement($cellElement);
+                    }
+                    $text .= "\t";
+                }
+                $text .= "\n";
+            }
+            return $text;
+        }
+
         if (method_exists($element, 'getText')) {
-            $text .= $element->getText();
+            $value = $element->getText();
+            if (is_string($value)) {
+                $text .= $value;
+            } elseif (is_array($value)) {
+                array_walk_recursive($value, function ($leaf) use (&$text) {
+                    if (is_scalar($leaf)) {
+                        $text .= (string) $leaf . ' ';
+                    }
+                });
+            }
         }
 
         if (method_exists($element, 'getElements')) {

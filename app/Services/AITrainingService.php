@@ -119,13 +119,16 @@ class AITrainingService
                 // Extraer contenido de archivos de entrada
                 $inputContent = '';
                 foreach ($archivosEntrada as $archivo) {
+                    $extractedInput = $this->extractor->extractText($archivo->ruta);
+                    $this->assertExtractionUsable($extractedInput, $archivo->nombre_original, $archivo->ruta);
                     $inputContent .= "--- Archivo: {$archivo->nombre_original} ---\n";
-                    $inputContent .= $this->extractor->extractText($archivo->ruta);
+                    $inputContent .= $extractedInput;
                     $inputContent .= "\n\n";
                 }
 
                 // Extraer contenido del archivo de salida
                 $outputContent = $this->extractor->extractText($archivoSalida->ruta);
+                $this->assertExtractionUsable($outputContent, $archivoSalida->nombre_original, $archivoSalida->ruta);
 
                 // Guardar para análisis de patrones
                 $allInputContents[] = $inputContent;
@@ -173,6 +176,29 @@ class AITrainingService
             ]);
 
             throw $e;
+        }
+    }
+
+    /**
+     * Garantiza que el texto extraído de un archivo del entrenamiento sea utilizable.
+     * Histórico: si el extractor fallaba, devolvía "[Error al extraer DOCX: ...]" como
+     * si fuera contenido válido; el ejemplo quedaba con basura de ~50 chars y el few-shot
+     * mostraba esa basura a la IA. Cortamos acá para que el training falle ruidoso.
+     */
+    protected function assertExtractionUsable(string $extracted, string $originalName, string $path): void
+    {
+        $trimmed = trim($extracted);
+
+        if ($trimmed === '' || str_starts_with($trimmed, '[Error al extraer')) {
+            throw new \RuntimeException("No se pudo extraer texto del archivo '{$originalName}' ({$path}). Contenido devuelto: {$trimmed}");
+        }
+
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
+        // Heurística: un docx > 50KB que extrae menos de 200 chars es casi seguro un fallo
+        // silencioso de extracción (PhpWord se traga elementos que no sabe leer).
+        if ($fileSize > 51200 && strlen($trimmed) < 200) {
+            throw new \RuntimeException("El archivo '{$originalName}' pesa " . number_format($fileSize) . " bytes pero solo extrajo " . strlen($trimmed) . " caracteres. Probable fallo silencioso del extractor.");
         }
     }
 
