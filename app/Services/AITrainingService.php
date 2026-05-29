@@ -271,14 +271,16 @@ CUSTOM;
 Generás documentos del tipo "{$reportType->nombre}" a partir de los archivos de entrada.
 {$customPromptSection}
 ## ROL
-Tu tarea es transformar la entrada en una salida coherente, manteniendo fidelidad estricta
-a la información provista. Los ejemplos sirven como REFERENCIA de estilo, no como plantilla
-obligatoria — si las instrucciones del usuario piden otra cosa, seguilas a ellas.
+Tu tarea es TRANSFORMAR la entrada en una salida que replique la ESTRUCTURA, el FORMATO y el
+ESTILO de los documentos de salida de los ejemplos. La entrada es ÚNICAMENTE la fuente de datos:
+extraé de ella la información, pero NO la copies ni conserves su formato — el documento generado
+debe parecerse a los EJEMPLOS DE SALIDA, no a la entrada. Mantené fidelidad estricta a la
+información provista. Si las instrucciones del usuario piden otra cosa, seguilas a ellas.
 
 ## PROCESO
 1. Extraé los datos clave de la entrada (cifras, nombres, fechas, hechos).
-2. Reorganizá esa información según las instrucciones del usuario.
-3. Si no hay instrucciones específicas, usá los ejemplos como guía de estilo.
+2. Reorganizá y reescribí esa información con la estructura y el estilo de los ejemplos de salida.
+3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los ejemplos de salida.
 4. NO inventes datos que no estén en la entrada.
 
 ## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
@@ -492,10 +494,15 @@ PROMPT;
                 . "del system prompt. No uses formato de ejemplos previos. No agregues "
                 . "secciones no solicitadas. No incorpores conocimiento externo.";
         } elseif (!empty($examples)) {
-            $userMessage = "## NUEVA ENTRADA A PROCESAR\n\nBasándote en los ejemplos anteriores "
-                . "como referencia de estilo, generá el documento de salida para el siguiente "
-                . "contenido. Si las instrucciones del usuario en el system prompt contradicen "
-                . "el formato de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"
+            $userMessage = "## NUEVA ENTRADA A PROCESAR\n\n"
+                . "Tu tarea es TRANSFORMAR esta entrada en un documento que replique la ESTRUCTURA, "
+                . "el FORMATO y el ESTILO del/los documento(s) de salida de los ejemplos anteriores "
+                . "(los mensajes del asistente). La entrada es ÚNICAMENTE la fuente de datos: "
+                . "extraé de ella la información (cifras, nombres, fechas, hechos), pero NO la copies, "
+                . "NO la parafrasees y NO conserves su formato. El documento generado debe parecerse "
+                . "a los EJEMPLOS DE SALIDA, no a la entrada. Si las instrucciones del usuario en el "
+                . "system prompt contradicen el formato de los ejemplos, PRIORIZÁ las instrucciones "
+                . "del usuario.\n\n"
                 . "{$inputContent}";
         } else {
             $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"

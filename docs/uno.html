@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>reportesIA · Cómo funciona</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --c-bg: #0b1020;
+    --c-panel: #121933;
+    --c-line: #2a335a;
+    --c-accent: #7c5cff;
+    --c-accent2: #22d3ee;
+    --c-ok: #22c55e;
+    --c-warn: #f59e0b;
+    --c-danger: #ef4444;
+  }
+  html, body { background: radial-gradient(1200px 800px at 10% -10%, #1a234a 0%, transparent 60%),
+                            radial-gradient(900px 700px at 110% 10%, #1b2a55 0%, transparent 55%),
+                            var(--c-bg); color: #e6e9f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  .glass { background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px); }
+  .step {
+    position: relative; cursor: pointer; transition: all .2s ease;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  }
+  .step:hover { transform: translateY(-2px); border-color: rgba(124,92,255,0.5); box-shadow: 0 10px 30px rgba(124,92,255,0.15); }
+  .step.active { border-color: var(--c-accent); box-shadow: 0 0 0 2px rgba(124,92,255,0.35), 0 12px 40px rgba(124,92,255,0.25); }
+  .step .num { background: linear-gradient(135deg, #7c5cff, #22d3ee); }
+  .arrow { width: 2px; background: linear-gradient(180deg, rgba(124,92,255,0.6), rgba(34,211,238,0.6)); position: relative; }
+  .arrow::after {
+    content: ''; position: absolute; left: -5px; bottom: -6px;
+    border-left: 6px solid transparent; border-right: 6px solid transparent;
+    border-top: 8px solid rgba(34,211,238,0.6);
+  }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .prompt-block {
+    background: #0a0f24; border: 1px solid #1f2747; border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    color: #cdd6f4; white-space: pre-wrap; line-height: 1.55;
+    max-height: 320px; overflow: auto;
+  }
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .chev { transition: transform .2s; }
+  details[open] .chev { transform: rotate(90deg); }
+  .scroll-fade { mask-image: linear-gradient(180deg, #000 90%, transparent); }
+  .badge-actor-admin { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.35); }
+  .badge-actor-user { background: rgba(34,211,238,.12); color: #67e8f9; border: 1px solid rgba(34,211,238,.35); }
+  .badge-actor-sys { background: rgba(124,92,255,.15); color: #c4b5fd; border: 1px solid rgba(124,92,255,.35); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .kbd { background:#1f2747; padding:1px 6px; border-radius:6px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a335a; border-radius: 8px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<header class="max-w-7xl mx-auto px-6 pt-8 pb-4">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-xl">📑</div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">reportesIA · Cómo funciona</h1>
+      </div>
+      <p class="text-slate-300 mt-2 max-w-2xl">Una guía visual e interactiva. Hacé click en cualquier paso para ver qué hace y los prompts reales que usa el sistema.</p>
+    </div>
+    <div class="flex gap-2">
+      <button id="btnGuided" class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 font-medium hover:opacity-95">▶ Modo guiado</button>
+      <button id="btnReset" class="px-4 py-2 rounded-xl glass hover:bg-white/5">↺ Reiniciar</button>
+    </div>
+  </div>
+
+  <div class="mt-5 flex flex-wrap gap-2 text-xs">
+    <span class="pill badge-actor-admin">🟡 Admin (entrena al sistema)</span>
+    <span class="pill badge-actor-user">🔵 Usuario final (genera reportes)</span>
+    <span class="pill badge-actor-sys">🟣 Sistema (Laravel + OpenAI)</span>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 pb-16 grid lg:grid-cols-5 gap-6">
+
+  <!-- COLUMNA IZQUIERDA: flujo -->
+  <section class="lg:col-span-2">
+    <div class="glass rounded-2xl p-5">
+      <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">🧭 Flujo completo</h2>
+      <p class="text-sm text-slate-300 mb-4">Del archivo crudo del usuario al reporte final, en 6 pasos.</p>
+
+      <div id="flow" class="space-y-3"></div>
+    </div>
+
+    <div class="glass rounded-2xl p-5 mt-5">
+      <h3 class="font-semibold mb-3">🧱 ¿Qué es esto, en una frase?</h3>
+      <p class="text-sm text-slate-300">
+        Una app Laravel donde un <b class="text-amber-300">admin</b> sube ejemplos de
+        "<i>entrada → reporte que quiero</i>", configura reglas (palabras prohibidas, longitud)
+        y deja entrenado un <b>"tipo de reporte"</b>. Después, cualquier
+        <b class="text-cyan-300">usuario</b> sube archivos nuevos y recibe un reporte hecho por
+        OpenAI que ya respeta esas reglas — el sistema vigila, corrige y limpia la salida antes de entregarla.
+      </p>
+    </div>
+
+    <div class="glass rounded-2xl p-5 mt-5">
+      <h3 class="font-semibold mb-3">🧪 Defensa en 3 capas</h3>
+      <ol class="text-sm text-slate-300 space-y-2 list-decimal list-inside">
+        <li><b class="text-violet-300">Instrucciones</b>: el system prompt le dice a la IA qué no hacer.</li>
+        <li><b class="text-violet-300">Validación + reintento</b>: si la salida viola reglas, el código le manda feedback y reintenta (hasta 2 veces).</li>
+        <li><b class="text-violet-300">Saneo determinístico</b>: aunque la IA insista, el código reemplaza palabras prohibidas y corta el texto al límite. <i>Esta capa NO depende de la IA.</i></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- COLUMNA DERECHA: detalle -->
+  <aside class="lg:col-span-3">
+    <div id="detail" class="glass rounded-2xl p-6 min-h-[600px]">
+      <!-- contenido dinámico -->
+    </div>
+  </aside>
+</main>
+
+<footer class="max-w-7xl mx-auto px-6 pb-10 text-xs text-slate-400">
+  Generado a partir de <code class="kbd">app/Services/AITrainingService.php</code>,
+  <code class="kbd">OutputValidatorService.php</code> y <code class="kbd">PromptParserService.php</code>.
+  Abrí este archivo en cualquier navegador — funciona sin servidor.
+</footer>
+
+<script>
+/* ============================================================
+   DATOS — los 6 pasos del flujo
+   ============================================================ */
+const STEPS = [
+  {
+    id: 1,
+    icon: "📥",
+    title: "Admin sube ejemplos",
+    actor: "admin",
+    short: "Pares <i>entrada → salida</i> + un prompt con las reglas del cliente.",
+    body: `
+      <p>El admin entra al módulo <b>Tipos de Reporte</b> y arma uno nuevo:</p>
+      <ul class="list-disc list-inside text-slate-300 space-y-1 mt-2">
+        <li>Nombre (ej. <i>"Informe técnico-administrativo"</i>)</li>
+        <li>Un <b>prompt</b> con las reglas: tono, longitud (ej. <i>"mínimo 2000 palabras"</i>), palabras prohibidas, secciones permitidas.</li>
+        <li>Un toggle <b>Modo estricto</b>: si está activo, NO se mostrarán ejemplos a la IA, solo el prompt manda.</li>
+        <li>Grupos de archivos: en cada grupo, varios archivos de <span class="pill badge-actor-user">entrada</span> y uno de <span class="pill badge-actor-sys">salida esperada</span>.</li>
+      </ul>
+      <p class="mt-3 text-slate-300">Estos pares son el "<b>few-shot</b>": le enseñan a la IA con ejemplos concretos, no solo con instrucciones.</p>
+      <div class="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-400/20 text-sm">
+        💡 <b>Por qué importa:</b> los LLMs siguen mejor un ejemplo concreto que una instrucción larga. Pero
+        si los ejemplos contradicen el prompt (ej. usan palabras prohibidas), arrastran al modelo. Por eso existen
+        Modo Estricto y el <i>auditor de ejemplos</i> que puede marcar ejemplos "contaminados".
+      </div>
+    `,
+    prompts: []
+  },
+
+  {
+    id: 2,
+    icon: "🧠",
+    title: "Entrenamiento (construir el system prompt)",
+    actor: "sys",
+    short: "Extrae texto de los archivos y compila el <b>prompt maestro</b>.",
+    body: `
+      <p>El servicio <code class="kbd">AITrainingService::processTraining()</code> hace:</p>
+      <ol class="list-decimal list-inside text-slate-300 space-y-1 mt-2">
+        <li>Extrae el texto de cada PDF / DOCX / imagen (<code class="kbd">DocumentExtractorService</code>). Si falla, corta ruidoso para que el ejemplo no quede con basura.</li>
+        <li>Guarda cada par como <code class="kbd">AITrainingExample</code>.</li>
+        <li>Analiza los outputs en busca de patrones: encabezados comunes, presencia de tablas, listas (<code class="kbd">analyzeOutputPatterns</code>) — filtrando los que contengan palabras prohibidas.</li>
+        <li>Construye el <b>system prompt</b> según el modo:
+          <ul class="list-disc list-inside ml-4 mt-1">
+            <li><b class="text-violet-300">Estándar</b>: prompt del cliente + patrones detectados + reglas base.</li>
+            <li><b class="text-violet-300">Estricto</b>: solo el prompt del cliente como única ley, sin patrones, sin ejemplos.</li>
+          </ul>
+        </li>
+        <li>Marca el entrenamiento como <code class="kbd">ready</code>.</li>
+      </ol>
+    `,
+    prompts: [
+      {
+        name: "Prompt MODO ESTÁNDAR (con ejemplos)",
+        when: "Cuando el tipo de reporte tiene <i>modo_estricto = false</i>.",
+        text: `Generás documentos del tipo "{nombre}" a partir de los archivos de entrada.
+
+## INSTRUCCIONES DEL USUARIO (PRIORIDAD MÁXIMA)
+Estas instrucciones son la PRIMERA ley. Si alguna regla posterior o algún patrón de los
+ejemplos las contradice, GANAN estas instrucciones. No las amplíes ni las interpretes.
+
+{prompt_del_cliente}
+
+## ROL
+Tu tarea es transformar la entrada en una salida coherente, manteniendo fidelidad estricta
+a la información provista. Los ejemplos sirven como REFERENCIA de estilo, no como plantilla
+obligatoria — si las instrucciones del usuario piden otra cosa, seguilas a ellas.
+
+## PROCESO
+1. Extraé los datos clave de la entrada (cifras, nombres, fechas, hechos).
+2. Reorganizá esa información según las instrucciones del usuario.
+3. Si no hay instrucciones específicas, usá los ejemplos como guía de estilo.
+4. NO inventes datos que no estén en la entrada.
+
+## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
+{patrones_detectados_de_los_ejemplos}
+
+## REGLAS BASE
+- No inventes información que no esté en los documentos de entrada.
+- Si falta información necesaria, indicá qué falta en lugar de rellenar.
+- Respetá la longitud y el tono solicitados por el usuario.`
+      },
+      {
+        name: "Prompt MODO ESTRICTO (sin ejemplos)",
+        when: "Cuando el cliente exige cero contaminación: solo su prompt manda.",
+        text: `Generás documentos del tipo "{nombre}".
+
+## INSTRUCCIONES OBLIGATORIAS (PRIORIDAD MÁXIMA)
+Las siguientes instrucciones son la ÚNICA ley para construir el documento. No las amplíes,
+no las interpretes, no las contradigas con conocimiento general. Si una instrucción del
+usuario entra en conflicto con cualquier otra consideración, GANA la instrucción del usuario.
+
+{prompt_del_cliente}
+
+## CONTRATO DE EJECUCIÓN
+- La fuente de verdad es EXCLUSIVAMENTE el contenido de entrada del usuario.
+- No incorpores información, contexto, beneficios, conclusiones, ni suposiciones que no
+  deriven literalmente de la entrada.
+- No agregues secciones, encabezados ni cierres que no estén explícitamente solicitados.
+- Si una sección no se puede desarrollar sin violar las reglas, mantenela implícita
+  o omitila — NO rellenes.
+- Antes de entregar, releé las instrucciones del usuario y eliminá cualquier contenido
+  que las viole.`
+      }
+    ]
+  },
+
+  {
+    id: 3,
+    icon: "📤",
+    title: "Usuario sube archivos nuevos",
+    actor: "user",
+    short: "El usuario final pide un reporte con su propio contenido.",
+    body: `
+      <p>El <b class="text-cyan-300">usuario</b> elige un Tipo de Reporte ya entrenado y sube uno o varios archivos
+      (PDF, DOCX, imágenes). Opcionalmente puede elegir el modelo de OpenAI a usar.</p>
+      <ul class="list-disc list-inside text-slate-300 space-y-1 mt-2">
+        <li>Modelo por defecto: <code class="kbd">gpt-5-mini</code> (mejor relación precio/calidad).</li>
+        <li>También soporta: gpt-5, gpt-5-nano, gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo.</li>
+        <li>El backend extrae el texto de cada archivo y lo concatena en un único bloque de entrada.</li>
+      </ul>
+      <div class="mt-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-400/20 text-sm">
+        ⏱️ El time limit del PHP se sube a <b>600s</b> porque GPT-5 razona internamente y puede tardar 60–180s.
+      </div>
+    `,
+    prompts: []
+  },
+
+  {
+    id: 4,
+    icon: "🤖",
+    title: "Llamada a OpenAI (con palabras prohibidas + ejemplos)",
+    actor: "sys",
+    short: "Arma todos los mensajes y llama al modelo.",
+    body: `
+      <p>Antes de llamar a OpenAI, el sistema calcula cuánto contexto le queda libre para meter ejemplos
+      (resta el system prompt + entrada + reserva para la salida), y selecciona hasta 5 ejemplos relevantes.</p>
+      <p class="mt-2">Si hay un mínimo de palabras pedido (ej. "más de 2000"), el truncado de los ejemplos escala
+      para que el few-shot demuestre <i>al menos</i> esa longitud — sino la IA imitaría el ejemplo corto, no el pedido.</p>
+
+      <p class="mt-3">La conversación que se envía a OpenAI tiene esta forma:</p>
+      <pre class="prompt-block p-3 mt-2">[system]  → System prompt maestro (del paso 2)
+[system]  → Lista global de PALABRAS PROHIBIDAS
+[user]    → "## EJEMPLO DE ENTRADA (capítulo X)..."
+[assistant] → "...salida esperada del ejemplo..."
+[user]    → "## EJEMPLO DE ENTRADA (capítulo Y)..."
+[assistant] → "...salida esperada del ejemplo..."
+   ...hasta 5 pares...
+[user]    → "## NUEVA ENTRADA A PROCESAR..."  ← lo que subió el usuario</pre>
+
+      <div class="mt-4 p-3 rounded-lg bg-violet-500/10 border border-violet-400/20 text-sm">
+        🧠 GPT-5 y modelos de razonamiento (o1/o3) tienen tokens "ocultos" para pensar. Por eso se usa
+        <code class="kbd">max_completion_tokens</code> y NO se le pasa <code>temperature</code> custom (solo aceptan el default).
+      </div>
+    `,
+    prompts: [
+      {
+        name: "Mensaje: PALABRAS PROHIBIDAS GLOBALES",
+        when: "Siempre que haya palabras configuradas en el módulo admin.",
+        text: `PALABRAS PROHIBIDAS GLOBALES (políticas del sistema, prioridad ABSOLUTA sobre cualquier otra instrucción):
+NUNCA uses ninguna de estas palabras ni sus variantes flexionadas (plural, conjugación, sustantivo derivado, etc.):
+
+- optimizar
+- garantizar
+- asegurar
+- ...(las que estén activas en la tabla forbidden_words)
+
+Si necesitás expresar la idea, reformulá usando sinónimos. Una sola aparición se considera una violación grave.`
+      },
+      {
+        name: "Mensaje de usuario · modo ESTÁNDAR (con ejemplos)",
+        when: "Cuando hay ejemplos disponibles y el modo NO es estricto.",
+        text: `## NUEVA ENTRADA A PROCESAR
+
+Basándote en los ejemplos anteriores como referencia de estilo, generá el documento de salida
+para el siguiente contenido. Si las instrucciones del usuario en el system prompt contradicen
+el formato de los ejemplos, PRIORIZÁ las instrucciones del usuario.
+
+{contenido_extraido_de_los_archivos_del_usuario}`
+      },
+      {
+        name: "Mensaje de usuario · modo ESTRICTO",
+        when: "Modo estricto activo — sin ejemplos.",
+        text: `## ENTRADA A PROCESAR
+
+{contenido_extraido_de_los_archivos_del_usuario}
+
+---
+Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS del system prompt.
+No uses formato de ejemplos previos. No agregues secciones no solicitadas. No incorpores
+conocimiento externo.`
+      },
+      {
+        name: "Mensaje de usuario · sin ejemplos disponibles",
+        when: "Cuando no hay ejemplos pero el modo no es estricto.",
+        text: `## ENTRADA A PROCESAR
+
+{contenido_extraido_de_los_archivos_del_usuario}
+
+---
+Generá la salida siguiendo las instrucciones del system prompt.`
+      }
+    ]
+  },
+
+  {
+    id: 5,
+    icon: "🔍",
+    title: "Validación + auto-corrección (loop)",
+    actor: "sys",
+    short: "Revisa la salida con código (no IA) y reintenta hasta 2 veces.",
+    body: `
+      <p>El <code class="kbd">OutputValidatorService</code> chequea la salida con reglas <b>determinísticas</b>
+      (parseo y regex, sin volver a llamar a la IA). Si encuentra problemas críticos, le manda feedback a la IA
+      y reintenta hasta <b>2 veces</b>.</p>
+
+      <h4 class="font-semibold mt-3">Qué se revisa:</h4>
+      <table class="text-sm w-full mt-2">
+        <thead class="text-slate-400">
+          <tr><th class="text-left py-1">Regla</th><th class="text-left">Severidad</th><th class="text-left">Acción</th></tr>
+        </thead>
+        <tbody class="text-slate-300">
+          <tr class="border-t border-white/10"><td class="py-1">Palabras prohibidas</td><td>🔴 crítica</td><td>Reintentar</td></tr>
+          <tr class="border-t border-white/10"><td class="py-1">Excede máximo de palabras</td><td>🔴 crítica</td><td>Reintentar + truncar</td></tr>
+          <tr class="border-t border-white/10"><td class="py-1">Bajo mínimo de palabras</td><td>🔴 crítica</td><td>Reintentar</td></tr>
+          <tr class="border-t border-white/10"><td class="py-1">Secciones no solicitadas</td><td>🟡 warning</td><td>Reintentar si es la única violación grave acompañante</td></tr>
+          <tr class="border-t border-white/10"><td class="py-1">Frases de relleno</td><td>🟡 warning</td><td>Idem</td></tr>
+        </tbody>
+      </table>
+
+      <p class="mt-3 text-slate-300">El feedback que se envía a la IA es <b>específico y accionable</b> — no
+      "sé más conciso", sino "<i>generaste X palabras y el límite es Y, apuntá a Z (10% por debajo)</i>".</p>
+    `,
+    prompts: [
+      {
+        name: "Feedback que se envía a la IA en cada reintento",
+        when: "Se inyecta como mensaje [user] después del [assistant] fallido.",
+        text: `La salida anterior viola las siguientes reglas. CORREGÍ y reentregá:
+- Eliminá COMPLETAMENTE estas palabras prohibidas: optimizar, garantizar, asegurar
+- Generaste 2480 palabras y el LÍMITE DURO es 2000. APUNTÁ a 1800 palabras (10% por debajo del máximo, te deja margen). Cortá información secundaria, NO la esencial. Contá las palabras al terminar y verificá que no superes 2000.
+- Por debajo del mínimo de 1500 palabras (faltan 230). NO rellenes con conocimiento externo: solo desarrollá lo que está en la entrada.
+- Sección "Conclusiones" no fue solicitada en el prompt. Eliminá esa sección.
+- Frase de justificación detectada: "se espera que". Reescribí en lenguaje técnico directo, sin justificaciones ni proyecciones.
+
+Reentregá SOLO el documento corregido, sin disculpas ni explicaciones.`
+      },
+      {
+        name: "Secciones genéricas que se detectan",
+        when: "Solo cuentan si NO están mencionadas en el prompt del cliente.",
+        text: `Resumen Ejecutivo / Resumen ejecutivo
+Conclusiones / Conclusión
+Recomendaciones
+Antecedentes
+Justificación
+Marco Teórico / Marco teórico`
+      },
+      {
+        name: "Frases de relleno que se detectan",
+        when: "Match por regex sobre la salida.",
+        text: `"se espera que"
+"permitirá …"
+"contribuye/contribuya …"
+"es fundamental/esencial/clave para/que …"
+"con el fin de"
+"con el objetivo de …"`
+      }
+    ]
+  },
+
+  {
+    id: 6,
+    icon: "🧼",
+    title: "Saneo determinístico final → entrega",
+    actor: "sys",
+    short: "Última red de seguridad: reemplaza palabras, corta al límite, devuelve Markdown.",
+    body: `
+      <p>Aunque la IA siga incumpliendo después de los reintentos, el código aplica dos pasadas finales que
+      <b>no dependen del modelo</b>:</p>
+
+      <ol class="list-decimal list-inside text-slate-300 space-y-2 mt-2">
+        <li><b>Saneo de palabras prohibidas</b> (<code class="kbd">sanitizeForbiddenWords</code>):
+          reemplaza cada palabra prohibida por un sinónimo seguro preservando el caso.
+          <pre class="prompt-block p-3 mt-2">optimizar       → ajustar
+garantizar      → sostener
+asegurar        → mantener
+implementar     → aplicar
+ejecutar        → realizar
+maximizar       → incrementar
+efectivo        → operativo
+esencial        → requerido
+clave           → definido
+fundamental     → requerido</pre>
+        </li>
+        <li><b>Truncado al límite de palabras</b> (<code class="kbd">truncateToWordLimit</code>):
+          si el texto excede el máximo declarado en el prompt, corta justo después de la última oración
+          completa (.!?) que entre dentro del límite. Si no hay terminador limpio, corta en final de palabra y agrega "…".
+        </li>
+      </ol>
+
+      <p class="mt-3 text-slate-300">El resultado se entrega como <b>Markdown</b> con metadatos (modelo usado,
+      cantidad de ejemplos, métricas de validación, si se aplicó saneo, tokens consumidos).</p>
+      <p class="mt-2 text-slate-300">El script <code class="kbd">_md_to_docx.php</code> convierte ese Markdown a <b>DOCX</b> descargable.</p>
+
+      <div class="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-400/20 text-sm">
+        ✅ <b>Por qué dos pasadas:</b> el LLM es probabilístico — puede fallar incluso con feedback explícito.
+        El código sí es determinístico. Esta capa <i>cierra la brecha</i> y vuelve la salida predecible.
+      </div>
+    `,
+    prompts: []
+  }
+];
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const flow = document.getElementById('flow');
+const detail = document.getElementById('detail');
+
+function actorBadge(a) {
+  if (a === 'admin') return '<span class="pill badge-actor-admin">Admin</span>';
+  if (a === 'user') return '<span class="pill badge-actor-user">Usuario</span>';
+  return '<span class="pill badge-actor-sys">Sistema</span>';
+}
+
+function renderFlow() {
+  flow.innerHTML = STEPS.map((s, i) => `
+    <div class="step rounded-xl p-3 flex gap-3 items-start" data-id="${s.id}">
+      <div class="num w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">${s.id}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-base">${s.icon}</span>
+          <span class="font-semibold">${s.title}</span>
+          ${actorBadge(s.actor)}
+        </div>
+        <p class="text-xs text-slate-300 mt-1 leading-snug">${s.short}</p>
+      </div>
+    </div>
+    ${i < STEPS.length - 1 ? '<div class="ml-[1.1rem] h-5 arrow"></div>' : ''}
+  `).join('');
+
+  flow.querySelectorAll('.step').forEach(el => {
+    el.addEventListener('click', () => selectStep(parseInt(el.dataset.id, 10)));
+  });
+}
+
+function renderDetail(step) {
+  const promptsHTML = step.prompts.length === 0 ? '' : `
+    <div class="mt-6">
+      <h3 class="font-semibold mb-2">📜 Prompts que se usan en este paso</h3>
+      <div class="space-y-2">
+        ${step.prompts.map((p, idx) => `
+          <details class="rounded-xl border border-white/10 bg-white/[0.02]">
+            <summary class="px-4 py-3 flex items-center gap-2">
+              <span class="chev">▶</span>
+              <span class="font-medium">${p.name}</span>
+            </summary>
+            <div class="px-4 pb-4">
+              <p class="text-xs text-slate-400 mb-2">${p.when}</p>
+              <pre class="prompt-block p-3">${escapeHTML(p.text)}</pre>
+              <button class="mt-2 text-xs text-cyan-300 hover:text-cyan-200" data-copy="${idx}">📋 Copiar</button>
+            </div>
+          </details>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  detail.innerHTML = `
+    <div class="flex items-start gap-4">
+      <div class="num w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-xl shrink-0">${step.icon}</div>
+      <div class="flex-1">
+        <div class="text-xs text-slate-400">Paso ${step.id} de ${STEPS.length}</div>
+        <h2 class="text-xl font-bold mt-1 flex items-center gap-3 flex-wrap">
+          ${step.title}
+          ${actorBadge(step.actor)}
+        </h2>
+      </div>
+    </div>
+
+    <div class="mt-5 text-slate-200 leading-relaxed text-[15px]">
+      ${step.body}
+    </div>
+
+    ${promptsHTML}
+
+    <div class="mt-6 flex justify-between gap-2">
+      <button class="px-3 py-2 rounded-lg glass hover:bg-white/5 text-sm ${step.id === 1 ? 'opacity-40 pointer-events-none' : ''}" data-nav="prev">← Anterior</button>
+      <button class="px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 text-sm font-medium ${step.id === STEPS.length ? 'opacity-40 pointer-events-none' : ''}" data-nav="next">Siguiente →</button>
+    </div>
+  `;
+
+  detail.querySelectorAll('[data-nav]').forEach(b => {
+    b.addEventListener('click', () => {
+      const dir = b.dataset.nav === 'next' ? 1 : -1;
+      selectStep(step.id + dir);
+    });
+  });
+
+  detail.querySelectorAll('[data-copy]').forEach(b => {
+    b.addEventListener('click', () => {
+      const idx = parseInt(b.dataset.copy, 10);
+      navigator.clipboard.writeText(step.prompts[idx].text).then(() => {
+        b.textContent = '✓ Copiado';
+        setTimeout(() => b.textContent = '📋 Copiar', 1500);
+      });
+    });
+  });
+}
+
+function selectStep(id) {
+  if (id < 1 || id > STEPS.length) return;
+  flow.querySelectorAll('.step').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.id, 10) === id);
+  });
+  const step = STEPS.find(s => s.id === id);
+  renderDetail(step);
+  // Si está fuera de viewport, hacer scroll
+  const activeEl = flow.querySelector('.step.active');
+  if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+/* Modo guiado */
+let guidedTimer = null;
+document.getElementById('btnGuided').addEventListener('click', () => {
+  if (guidedTimer) {
+    clearInterval(guidedTimer);
+    guidedTimer = null;
+    document.getElementById('btnGuided').innerHTML = '▶ Modo guiado';
+    return;
+  }
+  document.getElementById('btnGuided').innerHTML = '⏸ Pausar guiado';
+  let i = 1;
+  selectStep(i);
+  guidedTimer = setInterval(() => {
+    i++;
+    if (i > STEPS.length) {
+      clearInterval(guidedTimer);
+      guidedTimer = null;
+      document.getElementById('btnGuided').innerHTML = '▶ Modo guiado';
+      return;
+    }
+    selectStep(i);
+  }, 6000);
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  if (guidedTimer) { clearInterval(guidedTimer); guidedTimer = null; document.getElementById('btnGuided').innerHTML = '▶ Modo guiado'; }
+  selectStep(1);
+});
+
+/* Teclado */
+document.addEventListener('keydown', e => {
+  const active = parseInt(flow.querySelector('.step.active')?.dataset.id || '1', 10);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') selectStep(active + 1);
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') selectStep(active - 1);
+});
+
+/* init */
+renderFlow();
+selectStep(1);
+</script>
+</body>
+</html>

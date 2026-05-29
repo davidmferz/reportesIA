@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reportesIA · Diagrama visual</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0a0f1f;
+    --node: #141b35;
+    --edge: #2a335a;
+    --admin: #f59e0b;
+    --user: #22d3ee;
+    --sys: #7c5cff;
+    --ok: #22c55e;
+    --warn: #ef4444;
+  }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 600px at 15% 0%, #1a234a 0%, transparent 60%),
+      radial-gradient(800px 600px at 100% 100%, #1b2a55 0%, transparent 55%),
+      var(--bg);
+    color: #e6e9f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: auto;
+  }
+
+  /* Nodos */
+  .node {
+    position: absolute;
+    background: var(--node);
+    border: 1.5px solid var(--edge);
+    border-radius: 14px;
+    padding: 14px 16px;
+    min-width: 170px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .18s ease;
+    user-select: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  }
+  .node:hover {
+    transform: translateY(-2px) scale(1.02);
+    border-color: var(--sys);
+    box-shadow: 0 10px 30px rgba(124,92,255,0.25);
+  }
+  .node .icon { font-size: 28px; line-height: 1; }
+  .node .title { font-weight: 600; font-size: 13.5px; margin-top: 6px; letter-spacing: .2px; }
+  .node .tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    margin-top: 4px; opacity: .65;
+  }
+
+  .node.admin { border-color: rgba(245,158,11,.55); }
+  .node.admin:hover { box-shadow: 0 10px 30px rgba(245,158,11,.2); }
+  .node.user  { border-color: rgba(34,211,238,.55); }
+  .node.user:hover  { box-shadow: 0 10px 30px rgba(34,211,238,.2); }
+  .node.sys   { border-color: rgba(124,92,255,.55); }
+  .node.ok    { border-color: rgba(34,197,94,.6); background: linear-gradient(180deg, #0e2a1c, #0b1d14); }
+  .node.warn  { border-color: rgba(239,68,68,.6); background: linear-gradient(180deg, #2a1010, #1d0b0b); }
+
+  .node.has-prompt::after {
+    content: "📜";
+    position: absolute;
+    top: -8px; right: -8px;
+    background: #7c5cff;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(124,92,255,.5);
+  }
+
+  /* SVG flechas */
+  svg.edges {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .edge-line { stroke: var(--edge); stroke-width: 2; fill: none; }
+  .edge-line.loop { stroke: var(--warn); stroke-dasharray: 6 4; }
+  .edge-line.ok { stroke: var(--ok); }
+  .edge-label {
+    fill: #94a3b8; font-size: 11px; font-family: ui-monospace, Menlo, monospace;
+    text-anchor: middle;
+  }
+  .edge-label.warn { fill: #fca5a5; }
+  .edge-label.ok { fill: #86efac; }
+
+  /* Panel lateral */
+  #drawer {
+    position: fixed;
+    top: 0; right: 0;
+    width: min(520px, 92vw);
+    height: 100vh;
+    background: #0d1428;
+    border-left: 1px solid rgba(255,255,255,.08);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 50;
+    overflow-y: auto;
+    box-shadow: -20px 0 40px rgba(0,0,0,.4);
+  }
+  #drawer.open { transform: translateX(0); }
+  #drawerBackdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+    z-index: 49;
+  }
+  #drawerBackdrop.open { opacity: 1; pointer-events: auto; }
+
+  .prompt-block {
+    background: #06091a; border: 1px solid #1f2747; border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    color: #cdd6f4; white-space: pre-wrap; line-height: 1.55;
+    padding: 12px; max-height: 320px; overflow: auto;
+  }
+  .kbd { background:#1f2747; padding:1px 6px; border-radius:6px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a335a; border-radius: 8px; }
+
+  /* Canvas */
+  #canvas {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    margin: 20px auto;
+  }
+
+  /* Pulse para el loop */
+  @keyframes pulse-loop {
+    0%, 100% { stroke-opacity: 0.4; }
+    50% { stroke-opacity: 1; }
+  }
+  .edge-line.loop { animation: pulse-loop 2s ease-in-out infinite; }
+
+  /* Lanes */
+  .lane-label {
+    position: absolute;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #475569;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<header class="max-w-[1280px] mx-auto px-6 pt-6 flex items-center justify-between flex-wrap gap-3">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-xl">📑</div>
+    <div>
+      <h1 class="text-xl font-bold">reportesIA · Diagrama visual</h1>
+      <p class="text-xs text-slate-400">Tocá cualquier nodo. Los que tienen <span class="text-violet-300">📜</span> incluyen el prompt real.</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 text-xs">
+    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Admin</span>
+    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> Usuario</span>
+    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400"></span> Sistema</span>
+    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> OK</span>
+    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400"></span> Falla</span>
+  </div>
+</header>
+
+<div id="canvas">
+  <!-- Lane labels -->
+  <div class="lane-label" style="top: 30px; left: 20px;">① Entrenamiento</div>
+  <div class="lane-label" style="top: 280px; left: 20px;">② Generación</div>
+  <div class="lane-label" style="top: 520px; left: 20px;">③ Salida</div>
+
+  <!-- SVG flechas -->
+  <svg class="edges" width="1280" height="720">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#2a335a"/>
+      </marker>
+      <marker id="arrow-warn" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"/>
+      </marker>
+      <marker id="arrow-ok" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
+      </marker>
+    </defs>
+
+    <!-- Lane 1: entrenamiento -->
+    <line class="edge-line" x1="280" y1="135" x2="395" y2="135" marker-end="url(#arrow)"/>
+    <line class="edge-line" x1="565" y1="135" x2="680" y2="135" marker-end="url(#arrow)"/>
+    <line class="edge-line" x1="850" y1="135" x2="965" y2="135" marker-end="url(#arrow)"/>
+
+    <!-- Bajada al lane 2 (system prompt → OpenAI input) -->
+    <path class="edge-line" d="M 1050 175 Q 1050 230 850 230 T 650 380" marker-end="url(#arrow)" stroke-dasharray="3 3"/>
+    <text class="edge-label" x="870" y="225">system prompt entrenado</text>
+
+    <!-- Lane 2: generación -->
+    <line class="edge-line" x1="280" y1="380" x2="395" y2="380" marker-end="url(#arrow)"/>
+    <line class="edge-line" x1="565" y1="380" x2="675" y2="380" marker-end="url(#arrow)"/>
+    <line class="edge-line" x1="845" y1="380" x2="960" y2="380" marker-end="url(#arrow)"/>
+
+    <!-- Loop validador → IA (retry) -->
+    <path class="edge-line loop" d="M 1050 420 Q 1100 480 900 490 T 760 420" marker-end="url(#arrow-warn)"/>
+    <text class="edge-label warn" x="930" y="510">❌ falla → feedback (max 2)</text>
+
+    <!-- OK validador → saneo -->
+    <path class="edge-line ok" d="M 1050 380 Q 1170 380 1170 560 L 870 560" marker-end="url(#arrow-ok)"/>
+    <text class="edge-label ok" x="1190" y="470" transform="rotate(90 1190 470)">✓ válido</text>
+
+    <!-- Lane 3: salida -->
+    <line class="edge-line" x1="680" y1="595" x2="565" y2="595" marker-end="url(#arrow)"/>
+    <line class="edge-line" x1="395" y1="595" x2="280" y2="595" marker-end="url(#arrow)"/>
+  </svg>
+
+  <!-- ========== LANE 1: ENTRENAMIENTO (y=100) ========== -->
+  <div class="node admin" data-id="admin-up" style="top: 90px; left: 110px;">
+    <div class="icon">🟡</div>
+    <div class="title">Admin sube ejemplos</div>
+    <div class="tag">pares entrada → salida</div>
+  </div>
+
+  <div class="node admin has-prompt" data-id="admin-rules" style="top: 90px; left: 410px;">
+    <div class="icon">📝</div>
+    <div class="title">Define reglas</div>
+    <div class="tag">prompt + palabras prohibidas</div>
+  </div>
+
+  <div class="node sys" data-id="extract-train" style="top: 90px; left: 690px;">
+    <div class="icon">🔎</div>
+    <div class="title">Extrae texto + patrones</div>
+    <div class="tag">PDF / DOCX / IMG</div>
+  </div>
+
+  <div class="node sys has-prompt" data-id="system-prompt" style="top: 90px; left: 980px;">
+    <div class="icon">🧠</div>
+    <div class="title">System Prompt listo</div>
+    <div class="tag">estándar / estricto</div>
+  </div>
+
+  <!-- ========== LANE 2: GENERACIÓN (y=350) ========== -->
+  <div class="node user" data-id="user-up" style="top: 335px; left: 110px;">
+    <div class="icon">🔵</div>
+    <div class="title">Usuario sube archivos</div>
+    <div class="tag">elige tipo de reporte</div>
+  </div>
+
+  <div class="node sys" data-id="extract-gen" style="top: 335px; left: 410px;">
+    <div class="icon">📄</div>
+    <div class="title">Extrae texto</div>
+    <div class="tag">los nuevos inputs</div>
+  </div>
+
+  <div class="node sys has-prompt" data-id="openai-call" style="top: 335px; left: 690px;">
+    <div class="icon">🤖</div>
+    <div class="title">Llamada a OpenAI</div>
+    <div class="tag">gpt-5-mini · few-shot</div>
+  </div>
+
+  <div class="node sys has-prompt" data-id="validator" style="top: 335px; left: 980px;">
+    <div class="icon">🔍</div>
+    <div class="title">Validador</div>
+    <div class="tag">reglas determinísticas</div>
+  </div>
+
+  <!-- ========== LANE 3: SALIDA (y=560) ========== -->
+  <div class="node sys has-prompt" data-id="sanitize" style="top: 555px; left: 690px;">
+    <div class="icon">🧼</div>
+    <div class="title">Saneo + truncado</div>
+    <div class="tag">red de seguridad final</div>
+  </div>
+
+  <div class="node sys" data-id="markdown" style="top: 555px; left: 410px;">
+    <div class="icon">📋</div>
+    <div class="title">Markdown</div>
+    <div class="tag">+ métricas de validación</div>
+  </div>
+
+  <div class="node ok" data-id="docx" style="top: 555px; left: 110px;">
+    <div class="icon">✅</div>
+    <div class="title">DOCX descargable</div>
+    <div class="tag">entrega al usuario</div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div id="drawerBackdrop"></div>
+<aside id="drawer">
+  <div class="p-6">
+    <div class="flex items-start justify-between mb-4">
+      <h2 id="drawerTitle" class="text-lg font-bold"></h2>
+      <button id="drawerClose" class="text-slate-400 hover:text-white text-xl leading-none">✕</button>
+    </div>
+    <div id="drawerBody"></div>
+  </div>
+</aside>
+
+<footer class="text-center text-xs text-slate-500 pb-6">
+  <code class="kbd">app/Services/AITrainingService.php</code> · <code class="kbd">OutputValidatorService.php</code>
+</footer>
+
+<script>
+const DATA = {
+  "admin-up": {
+    title: "🟡 Admin sube ejemplos",
+    desc: "Para cada reporte, el admin sube grupos de archivos: varios de <b>entrada</b> y uno de <b>salida esperada</b>. Eso son los <i>few-shot</i>.",
+    prompts: []
+  },
+  "admin-rules": {
+    title: "📝 Reglas del reporte",
+    desc: "El admin escribe el <b>prompt del cliente</b> (tono, longitud, palabras prohibidas, secciones permitidas) y elige modo estándar o estricto.",
+    prompts: [
+      {
+        name: "Ejemplo de prompt del cliente",
+        text: `Escribí un informe técnico-administrativo.
+
+PALABRAS PROHIBIDAS:
+- optimizar, garantizar, asegurar, implementar
+- esencial, fundamental, clave
+
+Longitud: mínimo 2000 palabras, máximo 3500 palabras.
+
+No incluyas Resumen Ejecutivo ni Conclusiones.
+No uses frases como "se espera que" o "con el fin de".`
+      }
+    ]
+  },
+  "extract-train": {
+    title: "🔎 Extracción + análisis",
+    desc: "Lee cada archivo, extrae el texto y detecta patrones comunes en las salidas (encabezados, tablas, listas). Filtra patrones contaminados con palabras prohibidas.",
+    prompts: []
+  },
+  "system-prompt": {
+    title: "🧠 System Prompt entrenado",
+    desc: "El prompt maestro que se reusa en cada generación. Dos variantes según el modo:",
+    prompts: [
+      {
+        name: "Modo ESTÁNDAR (con ejemplos)",
+        text: `Generás documentos del tipo "{nombre}" a partir de los archivos de entrada.
+
+## INSTRUCCIONES DEL USUARIO (PRIORIDAD MÁXIMA)
+Estas instrucciones son la PRIMERA ley. Si alguna regla posterior o algún patrón
+de los ejemplos las contradice, GANAN estas instrucciones.
+
+{prompt_del_cliente}
+
+## ROL
+Transformar la entrada en una salida coherente, manteniendo fidelidad estricta
+a la información provista. Los ejemplos son REFERENCIA de estilo, no plantilla.
+
+## PROCESO
+1. Extraé los datos clave de la entrada (cifras, nombres, fechas, hechos).
+2. Reorganizá según las instrucciones del usuario.
+3. Si no hay instrucciones específicas, usá los ejemplos como guía de estilo.
+4. NO inventes datos que no estén en la entrada.
+
+## PATRONES DE REFERENCIA (NO obligatorios)
+{patrones_detectados}
+
+## REGLAS BASE
+- No inventes información que no esté en los documentos de entrada.
+- Si falta información necesaria, indicá qué falta en lugar de rellenar.
+- Respetá la longitud y el tono solicitados por el usuario.`
+      },
+      {
+        name: "Modo ESTRICTO (sin ejemplos)",
+        text: `Generás documentos del tipo "{nombre}".
+
+## INSTRUCCIONES OBLIGATORIAS (PRIORIDAD MÁXIMA)
+Son la ÚNICA ley para construir el documento. No las amplíes, no las interpretes,
+no las contradigas con conocimiento general.
+
+{prompt_del_cliente}
+
+## CONTRATO DE EJECUCIÓN
+- La fuente de verdad es EXCLUSIVAMENTE el contenido de entrada del usuario.
+- No incorpores información, contexto, conclusiones ni suposiciones que no
+  deriven literalmente de la entrada.
+- No agregues secciones, encabezados ni cierres que no estén explícitamente
+  solicitados.
+- Si una sección no se puede desarrollar sin violar las reglas, omitila — NO rellenes.
+- Antes de entregar, releé las instrucciones y eliminá cualquier violación.`
+      }
+    ]
+  },
+  "user-up": {
+    title: "🔵 Usuario final sube archivos",
+    desc: "Elige un Tipo de Reporte ya entrenado y sube uno o más archivos. Puede elegir el modelo (default: <code class='kbd'>gpt-5-mini</code>).",
+    prompts: []
+  },
+  "extract-gen": {
+    title: "📄 Extracción de los nuevos inputs",
+    desc: "Mismo extractor que en el entrenamiento. El texto extraído se concatena en un solo bloque de entrada para la IA.",
+    prompts: []
+  },
+  "openai-call": {
+    title: "🤖 Llamada a OpenAI",
+    desc: "Se arma la conversación: <code class='kbd'>system_prompt</code> + <code class='kbd'>palabras_prohibidas_globales</code> + hasta 5 ejemplos (modo estándar) + entrada nueva.",
+    prompts: [
+      {
+        name: "Mensaje de palabras prohibidas globales",
+        text: `PALABRAS PROHIBIDAS GLOBALES (políticas del sistema, prioridad ABSOLUTA
+sobre cualquier otra instrucción):
+
+NUNCA uses ninguna de estas palabras ni sus variantes flexionadas
+(plural, conjugación, sustantivo derivado, etc.):
+
+- optimizar
+- garantizar
+- asegurar
+- ...(las activas en la tabla forbidden_words)
+
+Si necesitás expresar la idea, reformulá usando sinónimos.
+Una sola aparición se considera una violación grave.`
+      },
+      {
+        name: "Mensaje de usuario · modo ESTÁNDAR",
+        text: `## NUEVA ENTRADA A PROCESAR
+
+Basándote en los ejemplos anteriores como referencia de estilo, generá el
+documento de salida para el siguiente contenido. Si las instrucciones del
+usuario en el system prompt contradicen el formato de los ejemplos,
+PRIORIZÁ las instrucciones del usuario.
+
+{contenido_del_usuario}`
+      },
+      {
+        name: "Mensaje de usuario · modo ESTRICTO",
+        text: `## ENTRADA A PROCESAR
+
+{contenido_del_usuario}
+
+---
+Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS
+del system prompt. No uses formato de ejemplos previos. No agregues
+secciones no solicitadas. No incorpores conocimiento externo.`
+      }
+    ]
+  },
+  "validator": {
+    title: "🔍 Validador determinístico",
+    desc: "Revisa la salida con código (regex/parseo), NO con IA. Si encuentra una violación crítica → reintenta con feedback (max 2).",
+    prompts: [
+      {
+        name: "Feedback que se inyecta en el reintento",
+        text: `La salida anterior viola las siguientes reglas. CORREGÍ y reentregá:
+
+- Eliminá COMPLETAMENTE estas palabras prohibidas: optimizar, garantizar
+- Generaste 2480 palabras y el LÍMITE DURO es 2000. APUNTÁ a 1800 palabras
+  (10% por debajo del máximo, te deja margen). Cortá información secundaria,
+  NO la esencial. Contá las palabras al terminar y verificá que no superes 2000.
+- Por debajo del mínimo de 1500 palabras (faltan 230). NO rellenes con
+  conocimiento externo: solo desarrollá lo que está en la entrada.
+- Sección "Conclusiones" no fue solicitada en el prompt. Eliminá esa sección.
+- Frase "se espera que". Reescribí en lenguaje técnico directo,
+  sin justificaciones ni proyecciones.
+
+Reentregá SOLO el documento corregido, sin disculpas ni explicaciones.`
+      },
+      {
+        name: "Reglas que aplica",
+        text: `🔴 CRÍTICAS  (disparan reintento)
+   • Palabras prohibidas presentes
+   • Excede el máximo de palabras
+   • No llega al mínimo de palabras
+
+🟡 WARNINGS  (se reintenta si caen en el mismo lote)
+   • Secciones no solicitadas:
+     Resumen Ejecutivo, Conclusiones, Recomendaciones,
+     Antecedentes, Justificación, Marco Teórico
+   • Frases de relleno:
+     "se espera que", "permitirá …", "contribuye …",
+     "es fundamental/esencial/clave para/que …",
+     "con el fin de", "con el objetivo de …"`
+      }
+    ]
+  },
+  "sanitize": {
+    title: "🧼 Saneo + truncado final",
+    desc: "Última red de seguridad: aunque la IA falle, el código reemplaza palabras prohibidas y corta el texto al límite.",
+    prompts: [
+      {
+        name: "Reemplazos automáticos (sinónimos seguros)",
+        text: `optimizar       → ajustar
+garantizar      → sostener
+asegurar        → mantener
+implementar     → aplicar
+ejecutar        → realizar
+maximizar       → incrementar
+efectivo        → operativo
+esencial        → requerido
+clave           → definido
+fundamental     → requerido`
+      },
+      {
+        name: "Truncado por palabras",
+        text: `Si excede el máximo:
+  1. Cuenta palabras Unicode (\\p{L}\\p{N}+)
+  2. Corta justo después de la N-ésima palabra
+  3. Busca el último .!? dentro del fragmento → corta ahí
+  4. Si no hay terminador limpio → corta en fin de palabra + "…"`
+      }
+    ]
+  },
+  "markdown": {
+    title: "📋 Salida en Markdown",
+    desc: "Markdown final + metadatos: modelo usado, ejemplos consumidos, intentos de validación, si hubo saneo, tokens gastados.",
+    prompts: []
+  },
+  "docx": {
+    title: "✅ DOCX descargable",
+    desc: "El script <code class='kbd'>_md_to_docx.php</code> convierte el Markdown a DOCX para que el usuario lo descargue.",
+    prompts: []
+  }
+};
+
+const drawer = document.getElementById('drawer');
+const backdrop = document.getElementById('drawerBackdrop');
+const title = document.getElementById('drawerTitle');
+const body = document.getElementById('drawerBody');
+
+function openDrawer(id) {
+  const d = DATA[id];
+  if (!d) return;
+  title.innerHTML = d.title;
+  let html = `<p class="text-sm text-slate-300 leading-relaxed">${d.desc}</p>`;
+  if (d.prompts.length) {
+    html += `<div class="mt-5 space-y-3">`;
+    d.prompts.forEach((p, i) => {
+      html += `
+        <details class="rounded-xl border border-white/10 bg-white/[0.02]" ${i === 0 ? 'open' : ''}>
+          <summary class="px-4 py-3 font-medium text-sm">📜 ${p.name}</summary>
+          <div class="px-4 pb-4">
+            <pre class="prompt-block">${escapeHTML(p.text)}</pre>
+          </div>
+        </details>`;
+    });
+    html += `</div>`;
+  }
+  body.innerHTML = html;
+  drawer.classList.add('open');
+  backdrop.classList.add('open');
+}
+
+function closeDrawer() {
+  drawer.classList.remove('open');
+  backdrop.classList.remove('open');
+}
+
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+document.querySelectorAll('.node').forEach(n => {
+  n.addEventListener('click', () => openDrawer(n.dataset.id));
+});
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+backdrop.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+</script>
+</body>
+</html>
