@@ -89,6 +89,10 @@ class DocumentExtractorService
      * devuelven array en getText(), y el ".= array" tira "Array to string conversion"
      * que el catch superior convertía en mensaje "[Error al extraer...]" guardado como
      * si fuera contenido válido. Ahora: bajamos a tablas y defendemos getText() arrays.
+     * (3) Un contenedor (TextRun, ListItemRun) expone getText() con el texto concatenado
+     * Y getElements() con los Text hijos que tienen ESE MISMO texto: contar ambos duplicaba
+     * el contenido pegado ("OBJETIVOOBJETIVO"). Ahora: si el elemento es contenedor con
+     * hijos, recursamos SOLO en los hijos; si es hoja, leemos getText(). Nunca las dos.
      */
     protected function extractTextFromElement($element): string
     {
@@ -107,6 +111,19 @@ class DocumentExtractorService
             return $text;
         }
 
+        // Contenedor con hijos: el texto vive en los hijos. Recursamos ahí y cortamos
+        // — NO leemos también getText(), porque devolvería el mismo texto concatenado.
+        if (method_exists($element, 'getElements')) {
+            $children = $element->getElements();
+            if (!empty($children)) {
+                foreach ($children as $childElement) {
+                    $text .= $this->extractTextFromElement($childElement);
+                }
+                return $text;
+            }
+        }
+
+        // Hoja: extraemos el texto directo del elemento.
         if (method_exists($element, 'getText')) {
             $value = $element->getText();
             if (is_string($value)) {
@@ -117,12 +134,9 @@ class DocumentExtractorService
                         $text .= (string) $leaf . ' ';
                     }
                 });
-            }
-        }
-
-        if (method_exists($element, 'getElements')) {
-            foreach ($element->getElements() as $childElement) {
-                $text .= $this->extractTextFromElement($childElement);
+            } elseif (is_object($value) && (method_exists($value, 'getElements') || method_exists($value, 'getText'))) {
+                // Title::getText() puede devolver un TextRun en vez de string.
+                $text .= $this->extractTextFromElement($value);
             }
         }
 
