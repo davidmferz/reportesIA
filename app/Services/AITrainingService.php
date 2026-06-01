@@ -152,8 +152,10 @@ class AITrainingService
                 $examplesProcessed++;
             }
 
-            // Construir el prompt del sistema con análisis de patrones
-            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType, $allOutputContents);
+            // Construir el prompt del sistema con análisis de patrones.
+            // El documento que el cliente quiere replicar es el de ENTRADA (es el MODELO
+            // de cómo debe verse la salida), por eso los patrones salen de los inputs.
+            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType, $allInputContents);
 
             // Actualizar el entrenamiento con el prompt del sistema generado
             $training->update([
@@ -206,7 +208,7 @@ class AITrainingService
      * Construye un prompt del sistema. Las instrucciones del cliente tienen MÁXIMA prioridad
      * y NUNCA pueden ser contradichas por reglas del sistema.
      */
-    protected function buildEnhancedSystemPrompt(ReportType $reportType, array $outputContents): string
+    protected function buildEnhancedSystemPrompt(ReportType $reportType, array $referenceContents): string
     {
         $customPrompt = $reportType->prompt ? trim($reportType->prompt) : '';
         $modoEstricto = (bool) ($reportType->modo_estricto ?? false);
@@ -215,7 +217,7 @@ class AITrainingService
             return $this->buildStrictSystemPrompt($reportType, $customPrompt);
         }
 
-        return $this->buildStandardSystemPrompt($reportType, $customPrompt, $outputContents);
+        return $this->buildStandardSystemPrompt($reportType, $customPrompt, $referenceContents);
     }
 
     /**
@@ -250,9 +252,9 @@ PROMPT;
      * Modo estándar: usa ejemplos y patrones, pero el prompt del cliente sigue mandando
      * sobre las reglas del sistema.
      */
-    protected function buildStandardSystemPrompt(ReportType $reportType, string $customPrompt, array $outputContents): string
+    protected function buildStandardSystemPrompt(ReportType $reportType, string $customPrompt, array $referenceContents): string
     {
-        $patternAnalysis = $this->analyzeOutputPatterns($outputContents, $customPrompt);
+        $patternAnalysis = $this->analyzeReferencePatterns($referenceContents, $customPrompt);
 
         $customPromptSection = '';
         if (!empty($customPrompt)) {
@@ -271,17 +273,18 @@ CUSTOM;
 Generás documentos del tipo "{$reportType->nombre}" a partir de los archivos de entrada.
 {$customPromptSection}
 ## ROL
-Tu tarea es TRANSFORMAR la entrada en una salida que replique la ESTRUCTURA, el FORMATO y el
-ESTILO de los documentos de salida de los ejemplos. La entrada es ÚNICAMENTE la fuente de datos:
-extraé de ella la información, pero NO la copies ni conserves su formato — el documento generado
-debe parecerse a los EJEMPLOS DE SALIDA, no a la entrada. Mantené fidelidad estricta a la
-información provista. Si las instrucciones del usuario piden otra cosa, seguilas a ellas.
+Tu tarea es GENERAR un documento que REPLIQUE la ESTRUCTURA, el FORMATO, la PROFUNDIDAD y el
+ESTILO de los DOCUMENTOS DE REFERENCIA (los documentos de ENTRADA de los ejemplos). Esos
+documentos de ENTRADA son el MODELO de cómo debe verse el resultado. Los datos crudos que recibís
+para procesar son ÚNICAMENTE la fuente de información: extraé de ellos los hechos, pero el
+documento final debe PARECERSE a los documentos de ENTRADA de referencia. Mantené fidelidad
+estricta a la información provista. Si las instrucciones del usuario piden otra cosa, seguilas a ellas.
 
 ## PROCESO
-1. Extraé los datos clave de la entrada (cifras, nombres, fechas, hechos).
-2. Reorganizá y reescribí esa información con la estructura y el estilo de los ejemplos de salida.
-3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los ejemplos de salida.
-4. NO inventes datos que no estén en la entrada.
+1. Extraé los datos clave de los datos crudos a procesar (cifras, nombres, fechas, hechos).
+2. Volcá esa información con la MISMA estructura, formato y profundidad de los documentos de ENTRADA de referencia.
+3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los documentos de ENTRADA de referencia.
+4. NO inventes datos que no estén en la información provista.
 
 ## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
 {$patternAnalysis}
@@ -296,11 +299,12 @@ PROMPT;
     }
 
     /**
-     * Analiza los patrones comunes en los contenidos de salida
+     * Analiza los patrones comunes (encabezados/secciones) en los DOCUMENTOS DE REFERENCIA
+     * (los documentos de ENTRADA). Son el modelo de cómo debe verse el resultado.
      */
-    protected function analyzeOutputPatterns(array $outputContents, ?string $customPrompt = null): string
+    protected function analyzeReferencePatterns(array $referenceContents, ?string $customPrompt = null): string
     {
-        if (empty($outputContents)) {
+        if (empty($referenceContents)) {
             return "No se detectaron patrones específicos.";
         }
 
@@ -317,7 +321,7 @@ PROMPT;
 
         // Detectar encabezados comunes
         $headings = [];
-        foreach ($outputContents as $content) {
+        foreach ($referenceContents as $content) {
             preg_match_all('/^#+\s*(.+)$/m', $content, $matches);
             if (!empty($matches[1])) {
                 $headings = array_merge($headings, $matches[1]);
@@ -356,7 +360,7 @@ PROMPT;
 
         // Detectar si hay tablas
         $hasTables = false;
-        foreach ($outputContents as $content) {
+        foreach ($referenceContents as $content) {
             if (preg_match('/\|.*\|/', $content)) {
                 $hasTables = true;
                 break;
@@ -368,7 +372,7 @@ PROMPT;
 
         // Detectar si hay listas
         $hasLists = false;
-        foreach ($outputContents as $content) {
+        foreach ($referenceContents as $content) {
             if (preg_match('/^[\-\*\d+\.]\s+/m', $content)) {
                 $hasLists = true;
                 break;
@@ -477,13 +481,21 @@ PROMPT;
             : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples);
 
         foreach ($examples as $example) {
+            // El resultado debe PARECERSE al documento de ENTRADA de referencia. Por eso ese
+            // documento (input_content) es el MODELO que el modelo debe replicar — NO la salida
+            // del ejemplo. Lo presentamos como referencia y el asistente confirma que la imita.
             $messages[] = [
                 'role' => 'user',
-                'content' => "## EJEMPLO DE ENTRADA ({$example['capitulo']})\n\n{$example['input']}",
+                'content' => "## DOCUMENTO DE REFERENCIA ({$example['capitulo']})\n\n"
+                    . "Este documento es el MODELO de cómo debe verse el resultado: su estructura, "
+                    . "su formato, su profundidad de desarrollo y su estilo de redacción. Cuando te "
+                    . "pase los datos crudos, generá un documento que REPLIQUE este modelo.\n\n"
+                    . $example['input'],
             ];
             $messages[] = [
                 'role' => 'assistant',
-                'content' => $example['output'],
+                'content' => "Comprendido. Replicaré la estructura, el formato, la profundidad y el "
+                    . "estilo de este documento de referencia al generar la salida.",
             ];
         }
 
@@ -494,15 +506,14 @@ PROMPT;
                 . "del system prompt. No uses formato de ejemplos previos. No agregues "
                 . "secciones no solicitadas. No incorpores conocimiento externo.";
         } elseif (!empty($examples)) {
-            $userMessage = "## NUEVA ENTRADA A PROCESAR\n\n"
-                . "Tu tarea es TRANSFORMAR esta entrada en un documento que replique la ESTRUCTURA, "
-                . "el FORMATO y el ESTILO del/los documento(s) de salida de los ejemplos anteriores "
-                . "(los mensajes del asistente). La entrada es ÚNICAMENTE la fuente de datos: "
-                . "extraé de ella la información (cifras, nombres, fechas, hechos), pero NO la copies, "
-                . "NO la parafrasees y NO conserves su formato. El documento generado debe parecerse "
-                . "a los EJEMPLOS DE SALIDA, no a la entrada. Si las instrucciones del usuario en el "
-                . "system prompt contradicen el formato de los ejemplos, PRIORIZÁ las instrucciones "
-                . "del usuario.\n\n"
+            $userMessage = "## DATOS CRUDOS A PROCESAR\n\n"
+                . "Generá un documento que REPLIQUE la estructura, el formato, la profundidad y el "
+                . "estilo de los DOCUMENTOS DE REFERENCIA anteriores (los documentos de ENTRADA). "
+                . "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
+                . "fechas, hechos); no inventes nada que no esté acá. El documento final debe PARECERSE "
+                . "a los documentos de ENTRADA de referencia, no quedarse en un resumen de estos datos "
+                . "crudos. Si las instrucciones del usuario en el system prompt contradicen el formato "
+                . "de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"
                 . "{$inputContent}";
         } else {
             $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
