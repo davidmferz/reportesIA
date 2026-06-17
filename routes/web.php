@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ForbiddenWordController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\ReportTypeController;
 use App\Http\Controllers\ReportTypeFileController;
 use App\Http\Controllers\AITrainingController;
@@ -37,6 +38,10 @@ Route::middleware('auth')->group(function () {
 // Rutas de administración
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
+
+    // Registro de actividad (audit log) — trazabilidad de cambios de configuración
+    Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
+
     Route::resource('report-types', ReportTypeController::class);
 
     // Palabras prohibidas globales (se inyectan en TODOS los prompts)
