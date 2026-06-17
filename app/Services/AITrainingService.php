@@ -34,15 +34,34 @@ class AITrainingService
     protected OutputValidatorService $validator;
 
     /**
+     * Servicio de investigación por internet. Opcional: se resuelve perezosamente
+     * vía el container si no se inyecta, para no romper instanciaciones manuales
+     * (p. ej. tests) que construyen el servicio con dos argumentos.
+     */
+    protected ?WebResearchService $webResearch;
+
+    /**
      * Máximo de reintentos del loop de auto-corrección.
      * Más de 2 da rendimientos decrecientes y consume tokens innecesarios.
      */
     protected int $maxValidationRetries = 2;
 
-    public function __construct(DocumentExtractorService $extractor, OutputValidatorService $validator)
-    {
+    public function __construct(
+        DocumentExtractorService $extractor,
+        OutputValidatorService $validator,
+        ?WebResearchService $webResearch = null
+    ) {
         $this->extractor = $extractor;
         $this->validator = $validator;
+        $this->webResearch = $webResearch;
+    }
+
+    /**
+     * Resuelve el servicio de investigación web (lazy) si no fue inyectado.
+     */
+    protected function webResearch(): WebResearchService
+    {
+        return $this->webResearch ??= app(WebResearchService::class);
     }
 
     /**
@@ -463,6 +482,47 @@ PROMPT;
             ];
         }
 
+        // Permiso de conocimiento del modelo (solo si el tipo lo tiene habilitado).
+        // Override en RUNTIME (no requiere re-entrenar): relaja la fidelidad estricta
+        // para que el modelo APORTE conocimiento general del dominio. Default OFF: los
+        // tipos existentes mantienen "solo datos del cliente". El permiso es acotado:
+        // jamás autoriza inventar datos específicos del cliente.
+        $usaConocimientoModelo = (bool) ($training->reportType->usa_conocimiento_modelo ?? false);
+        if ($usaConocimientoModelo) {
+            $messages[] = [
+                'role' => 'system',
+                'content' => "PERMISO DE CONOCIMIENTO DEL MODELO (tiene prioridad sobre cualquier regla "
+                    . "previa de 'no incorporar conocimiento externo' o 'no inventes').\n"
+                    . "Usá tu propio conocimiento experto del dominio para ENRIQUECER y CONTEXTUALIZAR el "
+                    . "documento (definiciones, marco técnico, buenas prácticas del sector), ADEMÁS de los "
+                    . "datos del cliente.\n"
+                    . "REGLAS INNEGOCIABLES:\n"
+                    . "1) NO inventes datos ESPECÍFICOS del cliente (cifras, nombres, fechas, resultados, "
+                    . "mediciones) que no estén en la entrada: esos salen EXCLUSIVAMENTE del documento.\n"
+                    . "2) Tu aporte es conocimiento GENERAL del campo, nunca hechos atribuidos al cliente.\n"
+                    . "3) No contradigas ni reemplaces los datos de la entrada.",
+            ];
+        }
+
+        // Enriquecimiento con datos de internet (solo si el tipo de reporte lo tiene
+        // habilitado). Es ADITIVO y FAIL-SAFE: si la búsqueda falla o no aplica, la
+        // generación continúa igual, sin datos externos. Los tipos con el toggle
+        // apagado (el default) no pagan ningún costo ni cambian su comportamiento.
+        if ((bool) ($training->reportType->usa_internet ?? false)) {
+            $research = $this->webResearch()->research($inputContent, $model);
+            if ($research['used']) {
+                Log::info('Datos de internet incorporados a la generación. Fuentes: ' . count($research['sources']));
+                $messages[] = [
+                    'role' => 'system',
+                    'content' => "DATOS COMPLEMENTARIOS OBTENIDOS DE INTERNET (con fuentes citadas).\n"
+                        . "Integralos para enriquecer y contextualizar el documento JUNTO con los datos "
+                        . "del cliente. Citá la fuente cuando uses un dato externo. NUNCA contradigas ni "
+                        . "reemplaces los datos crudos del cliente: estos datos son complementarios.\n\n"
+                        . $research['brief'],
+                ];
+            }
+        }
+
         // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
         // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
         // (palabras prohibidas, secciones extra, justificaciones) que el cliente
@@ -501,16 +561,24 @@ PROMPT;
 
         // Agregar el nuevo input del usuario
         if ($modoEstricto) {
+            $clausulaConocimiento = $usaConocimientoModelo
+                ? "Podés enriquecer con tu conocimiento experto del dominio, sin inventar datos específicos del cliente."
+                : "No incorpores conocimiento externo.";
             $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
                 . "Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS "
                 . "del system prompt. No uses formato de ejemplos previos. No agregues "
-                . "secciones no solicitadas. No incorpores conocimiento externo.";
+                . "secciones no solicitadas. {$clausulaConocimiento}";
         } elseif (!empty($examples)) {
+            $clausulaFuente = $usaConocimientoModelo
+                ? "Usá los siguientes datos como fuente de los HECHOS específicos del cliente (cifras, nombres, "
+                    . "fechas) y COMPLEMENTÁ con tu conocimiento experto del dominio para enriquecer el desarrollo; "
+                    . "no inventes datos del cliente que no estén acá."
+                : "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
+                    . "fechas, hechos); no inventes nada que no esté acá.";
             $userMessage = "## DATOS CRUDOS A PROCESAR\n\n"
                 . "Generá un documento que REPLIQUE la estructura, el formato, la profundidad y el "
                 . "estilo de los DOCUMENTOS DE REFERENCIA anteriores (los documentos de ENTRADA). "
-                . "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
-                . "fechas, hechos); no inventes nada que no esté acá. El documento final debe PARECERSE "
+                . "{$clausulaFuente} El documento final debe PARECERSE "
                 . "a los documentos de ENTRADA de referencia, no quedarse en un resumen de estos datos "
                 . "crudos. Si las instrucciones del usuario en el system prompt contradicen el formato "
                 . "de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"

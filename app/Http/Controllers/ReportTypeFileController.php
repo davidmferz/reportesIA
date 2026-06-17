@@ -47,6 +47,8 @@ class ReportTypeFileController extends Controller
             'prompt' => 'nullable|string|max:65535',
             'model' => 'nullable|string|in:gpt-5,gpt-5-mini,gpt-5-nano,gpt-4o,gpt-4o-mini,gpt-4-turbo,gpt-3.5-turbo',
             'modo_estricto' => 'nullable|boolean',
+            'usa_internet' => 'nullable|boolean',
+            'usa_conocimiento_modelo' => 'nullable|boolean',
         ], [
             'prompt.max' => 'El prompt no puede tener más de 65535 caracteres.',
         ]);
@@ -55,6 +57,8 @@ class ReportTypeFileController extends Controller
             'prompt' => $validated['prompt'] ?? null,
             'model' => $validated['model'] ?? null,
             'modo_estricto' => (bool) ($validated['modo_estricto'] ?? false),
+            'usa_internet' => (bool) ($validated['usa_internet'] ?? false),
+            'usa_conocimiento_modelo' => (bool) ($validated['usa_conocimiento_modelo'] ?? false),
             'updated_by' => Auth::id(),
         ]);
 

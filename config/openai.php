@@ -48,4 +48,18 @@ return [
     */
 
     'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 300),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Web Search (enriquecimiento con datos de internet)
+    |--------------------------------------------------------------------------
+    |
+    | Modelo y tipo de herramienta usados por WebResearchService cuando un tipo
+    | de reporte tiene "usar internet" activo. La búsqueda corre por la Responses
+    | API de OpenAI con la herramienta web_search nativa. Cambiá el tool a
+    | 'web_search_preview' si tu modelo/versión de la API lo requiere.
+    */
+
+    'search_model' => env('OPENAI_SEARCH_MODEL', 'gpt-4o-mini'),
+    'web_search_tool' => env('OPENAI_WEB_SEARCH_TOOL', 'web_search'),
 ];

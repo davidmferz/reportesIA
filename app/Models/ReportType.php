@@ -14,6 +14,8 @@ class ReportType extends Model
         'prompt',
         'model',
         'modo_estricto',
+        'usa_internet',
+        'usa_conocimiento_modelo',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -21,6 +23,8 @@ class ReportType extends Model
 
     protected $casts = [
         'modo_estricto' => 'boolean',
+        'usa_internet' => 'boolean',
+        'usa_conocimiento_modelo' => 'boolean',
     ];
 
     protected $dates = [

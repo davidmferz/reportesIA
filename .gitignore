@@ -22,3 +22,10 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Dumps de base de datos: contienen datos de cliente + hashes de credenciales. NUNCA versionar.
+docs/*.sql
+
+# Material de presentación / notas internas de demo
+docs/presentacion/GUION-DEMO.md
+docs/comparacion-tipo4.md

@@ -93,6 +93,44 @@
                             </div>
                         </div>
 
+                        <!-- Datos de internet -->
+                        <div class="mb-6">
+                            <label class="inline-flex items-start cursor-pointer p-3 rounded-hando border border-hando-border-light dark:border-hando-border-dark hover:border-purple-400 transition-colors w-full">
+                                <input type="hidden" name="usa_internet" value="0">
+                                <input type="checkbox" id="usa_internet" name="usa_internet" value="1"
+                                    @checked($reportType->usa_internet)
+                                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-hando-border-light rounded">
+                                <span class="ml-3">
+                                    <span class="block text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">Enriquecer con datos de internet</span>
+                                    <span class="block text-xs text-hando-gray-500 dark:text-hando-gray-400 mt-0.5">
+                                        Antes de generar, busca en internet (web_search de OpenAI) datos actuales
+                                        y verificables sobre el tema y los incorpora al documento, citando fuentes.
+                                        Los datos del cliente siguen mandando; internet solo complementa.
+                                        Dejalo APAGADO si el reporte debe basarse exclusivamente en el documento cargado.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <!-- Conocimiento del modelo -->
+                        <div class="mb-6">
+                            <label class="inline-flex items-start cursor-pointer p-3 rounded-hando border border-hando-border-light dark:border-hando-border-dark hover:border-purple-400 transition-colors w-full">
+                                <input type="hidden" name="usa_conocimiento_modelo" value="0">
+                                <input type="checkbox" id="usa_conocimiento_modelo" name="usa_conocimiento_modelo" value="1"
+                                    @checked($reportType->usa_conocimiento_modelo)
+                                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-hando-border-light rounded">
+                                <span class="ml-3">
+                                    <span class="block text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">Aportar conocimiento del modelo</span>
+                                    <span class="block text-xs text-hando-gray-500 dark:text-hando-gray-400 mt-0.5">
+                                        Permite que la IA enriquezca el documento con su conocimiento experto del dominio
+                                        (definiciones, marco técnico, buenas prácticas), además de los datos del cliente.
+                                        Nunca inventa datos específicos del cliente (cifras, nombres, fechas): esos salen solo del documento.
+                                        Dejalo APAGADO para fidelidad estricta al documento cargado.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+
                         <!-- Prompt principal -->
                         <div>
                             <div class="flex items-center justify-between mb-2">
