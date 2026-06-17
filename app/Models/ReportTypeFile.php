@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReportTypeFile extends Model
 {
     use SoftDeletes;
+    use LogsActivity;
+
+    /** El contenido extraído de los archivos puede ser enorme; no va al log. */
+    public array $activityLogExclude = ['input_content', 'output_content'];
 
     protected $fillable = [
         'report_type_id',

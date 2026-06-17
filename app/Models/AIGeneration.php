@@ -2,11 +2,26 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AIGeneration extends Model
 {
+    use LogsActivity;
+
+    /**
+     * El contenido completo ya vive en esta misma tabla (input_content, output_content,
+     * prompt_messages, validation_result). En el log de actividad guardamos solo el
+     * "qué pasó" (estado, tokens, quién, cuándo) sin duplicar los blobs.
+     */
+    public array $activityLogExclude = [
+        'input_content',
+        'output_content',
+        'prompt_messages',
+        'validation_result',
+    ];
+
     protected $table = 'ai_generations';
 
     protected $fillable = [

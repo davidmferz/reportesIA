@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class ForbiddenWord extends Model
 {
+    use LogsActivity;
+
     protected $fillable = ['word', 'reason', 'active'];
 
     protected $casts = [

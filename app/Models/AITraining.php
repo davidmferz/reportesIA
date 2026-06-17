@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AITraining extends Model
 {
+    use LogsActivity;
+
+    /** El system_prompt compilado es enorme; no lo volcamos en cada registro de auditoría. */
+    public array $activityLogExclude = ['system_prompt'];
+
     protected $table = 'ai_trainings';
 
     protected $fillable = [

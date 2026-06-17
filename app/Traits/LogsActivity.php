@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Models\ActivityLog;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 
 trait LogsActivity
@@ -24,12 +25,21 @@ trait LogsActivity
 
     protected static function logActivity($model, string $event): void
     {
+        // Evita registrar "updates" que no cambiaron nada real (p. ej. solo touch de timestamps).
+        if ($event === 'updated' && empty($model->getChanges())) {
+            return;
+        }
+
+        // Campos a excluir del log (el modelo los define en $activityLogExclude).
+        // Sirve para no volcar blobs enormes (input/output/prompt_messages) en cada registro.
+        $exclude = property_exists($model, 'activityLogExclude') ? $model->activityLogExclude : [];
+
         $properties = [
-            'attributes' => $model->getAttributes(),
+            'attributes' => Arr::except($model->getAttributes(), $exclude),
         ];
 
         if ($event === 'updated') {
-            $properties['old'] = $model->getOriginal();
+            $properties['old'] = Arr::except($model->getOriginal(), $exclude);
         }
 
         ActivityLog::create([

@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Chapter extends Model
 {
     use SoftDeletes;
+    use LogsActivity;
 
     protected $fillable = [
         'report_type_id',
