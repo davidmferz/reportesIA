@@ -11,9 +11,9 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 /**
- * El cliente exige que el documento GENERADO se parezca al documento de ENTRADA
- * de referencia (no a la salida del ejemplo). Estos tests blindan esa decisión:
- * el system prompt en modo estándar debe orientar el resultado hacia la ENTRADA.
+ * El cliente exige que el documento GENERADO se parezca al archivo de SALIDA
+ * del entrenamiento. Estos tests blindan esa decisión: el system prompt en modo
+ * estándar debe orientar el resultado hacia la SALIDA, igual que el juez.
  */
 class AITrainingPromptTest extends TestCase
 {
@@ -31,31 +31,46 @@ class AITrainingPromptTest extends TestCase
         return $method->invoke($service, $rt, $customPrompt, $referenceContents);
     }
 
-    public function test_orienta_el_resultado_hacia_el_documento_de_entrada(): void
+    public function test_orienta_el_resultado_hacia_el_archivo_de_salida(): void
     {
         $prompt = $this->buildStandard('', [
             "ANÁLISIS DE INFRAESTRUCTURA\nDesarrollo técnico amplio del proceso.",
         ]);
 
-        // Debe pedir REPLICAR el documento de referencia (la ENTRADA)…
+        // Debe pedir REPLICAR el archivo de referencia (la SALIDA)…
         $this->assertStringContainsStringIgnoringCase('REFERENCIA', $prompt);
-        $this->assertStringContainsString('ENTRADA', $prompt);
+        $this->assertStringContainsString('SALIDA', $prompt);
     }
 
-    public function test_ya_no_empuja_hacia_los_ejemplos_de_salida(): void
+    public function test_ya_no_empuja_hacia_los_documentos_de_entrada(): void
     {
         $prompt = $this->buildStandard('', [
             "ANÁLISIS DE INFRAESTRUCTURA\nDesarrollo técnico amplio del proceso.",
         ]);
 
-        // …y NO debe seguir diciendo "parecete a la SALIDA, no a la entrada".
-        $this->assertStringNotContainsString('EJEMPLOS DE SALIDA', $prompt);
-        $this->assertStringNotContainsString('no a la entrada', $prompt);
+        // …y NO debe seguir diciendo que el molde son los documentos de ENTRADA.
+        $this->assertStringNotContainsString('documentos de ENTRADA', $prompt);
+        $this->assertStringNotContainsString('no a la salida', $prompt);
+    }
+
+    public function test_runtime_override_reemplaza_entrada_por_salida_sin_reentrenar(): void
+    {
+        $service = new AITrainingService(
+            new DocumentExtractorService(),
+            new OutputValidatorService(new PromptParserService()),
+        );
+
+        $method = new ReflectionMethod($service, 'referenceModelPolicyPrompt');
+        $policy = $method->invoke($service);
+
+        $this->assertStringContainsString('SALIDA', $policy);
+        $this->assertStringContainsString('reemplazada', $policy);
+        $this->assertStringContainsString('ENTRADA', $policy);
     }
 
     public function test_los_patrones_salen_del_documento_de_referencia(): void
     {
-        // El heading del documento de referencia (entrada) debe aparecer como patrón.
+        // El heading del archivo de salida de referencia debe aparecer como patrón.
         $prompt = $this->buildStandard('', [
             "ANALISIS DE RIEGO TECNIFICADO\nContenido del modelo de referencia.",
         ]);

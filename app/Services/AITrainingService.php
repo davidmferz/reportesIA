@@ -33,6 +33,8 @@ class AITrainingService
 
     protected OutputValidatorService $validator;
 
+    protected ?OutputSimilarityJudgeService $similarityJudge;
+
     /**
      * Servicio de investigación por internet. Opcional: se resuelve perezosamente
      * vía el container si no se inyecta, para no romper instanciaciones manuales
@@ -49,11 +51,13 @@ class AITrainingService
     public function __construct(
         DocumentExtractorService $extractor,
         OutputValidatorService $validator,
-        ?WebResearchService $webResearch = null
+        ?WebResearchService $webResearch = null,
+        ?OutputSimilarityJudgeService $similarityJudge = null
     ) {
         $this->extractor = $extractor;
         $this->validator = $validator;
         $this->webResearch = $webResearch;
+        $this->similarityJudge = $similarityJudge;
     }
 
     /**
@@ -62,6 +66,11 @@ class AITrainingService
     protected function webResearch(): WebResearchService
     {
         return $this->webResearch ??= app(WebResearchService::class);
+    }
+
+    protected function similarityJudge(): OutputSimilarityJudgeService
+    {
+        return $this->similarityJudge ??= app(OutputSimilarityJudgeService::class);
     }
 
     /**
@@ -172,9 +181,10 @@ class AITrainingService
             }
 
             // Construir el prompt del sistema con análisis de patrones.
-            // El documento que el cliente quiere replicar es el de ENTRADA (es el MODELO
-            // de cómo debe verse la salida), por eso los patrones salen de los inputs.
-            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType, $allInputContents);
+            // El cliente quiere que la generación se parezca a los archivos de SALIDA
+            // del entrenamiento. Por eso los patrones salen de las salidas, igual que
+            // el juez de similitud que valida el resultado final.
+            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType, $allOutputContents);
 
             // Actualizar el entrenamiento con el prompt del sistema generado
             $training->update([
@@ -268,6 +278,26 @@ PROMPT;
     }
 
     /**
+     * Override runtime para entrenamientos ya existentes.
+     *
+     * El system_prompt vive persistido en DB; cambiar processTraining() solo afecta
+     * re-entrenamientos futuros. Esta política evita que un entrenamiento viejo siga
+     * empujando a "parecerse a ENTRADA" mientras el juez valida contra SALIDA.
+     */
+    protected function referenceModelPolicyPrompt(): string
+    {
+        return <<<PROMPT
+## POLÍTICA ACTUAL DE REFERENCIA (PRIORIDAD SOBRE PROMPTS DE ENTRENAMIENTO VIEJOS)
+El documento generado debe parecerse a los archivos de SALIDA del entrenamiento.
+Si algún prompt almacenado anteriormente dice que el molde son documentos de ENTRADA,
+esa instrucción queda reemplazada: el molde visual, estructural, de profundidad y estilo
+son las SALIDAS de referencia.
+Los documentos de entrada del usuario siguen siendo la fuente de HECHOS específicos
+(cifras, nombres, fechas, mediciones); no copies datos específicos de las salidas de ejemplo.
+PROMPT;
+    }
+
+    /**
      * Modo estándar: usa ejemplos y patrones, pero el prompt del cliente sigue mandando
      * sobre las reglas del sistema.
      */
@@ -293,16 +323,16 @@ Generás documentos del tipo "{$reportType->nombre}" a partir de los archivos de
 {$customPromptSection}
 ## ROL
 Tu tarea es GENERAR un documento que REPLIQUE la ESTRUCTURA, el FORMATO, la PROFUNDIDAD y el
-ESTILO de los DOCUMENTOS DE REFERENCIA (los documentos de ENTRADA de los ejemplos). Esos
-documentos de ENTRADA son el MODELO de cómo debe verse el resultado. Los datos crudos que recibís
+ESTILO de los DOCUMENTOS DE REFERENCIA (los archivos de SALIDA del entrenamiento). Esos
+archivos de SALIDA son el MODELO de cómo debe verse el resultado. Los datos crudos que recibís
 para procesar son ÚNICAMENTE la fuente de información: extraé de ellos los hechos, pero el
-documento final debe PARECERSE a los documentos de ENTRADA de referencia. Mantené fidelidad
+documento final debe PARECERSE a los archivos de SALIDA de referencia. Mantené fidelidad
 estricta a la información provista. Si las instrucciones del usuario piden otra cosa, seguilas a ellas.
 
 ## PROCESO
 1. Extraé los datos clave de los datos crudos a procesar (cifras, nombres, fechas, hechos).
-2. Volcá esa información con la MISMA estructura, formato y profundidad de los documentos de ENTRADA de referencia.
-3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los documentos de ENTRADA de referencia.
+2. Volcá esa información con la MISMA estructura, formato y profundidad de los archivos de SALIDA de referencia.
+3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los archivos de SALIDA de referencia.
 4. NO inventes datos que no estén en la información provista.
 
 ## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
@@ -319,7 +349,7 @@ PROMPT;
 
     /**
      * Analiza los patrones comunes (encabezados/secciones) en los DOCUMENTOS DE REFERENCIA
-     * (los documentos de ENTRADA). Son el modelo de cómo debe verse el resultado.
+     * (los archivos de SALIDA del entrenamiento). Son el modelo de cómo debe verse el resultado.
      */
     protected function analyzeReferencePatterns(array $referenceContents, ?string $customPrompt = null): string
     {
@@ -411,6 +441,75 @@ PROMPT;
     }
 
     /**
+     * Salidas de entrenamiento que el juez usa como referencia.
+     *
+     * Se priorizan ejemplos habilitados para few-shot y no contaminados. Si por
+     * alguna razón todos quedaron excluidos, hacemos fallback a todos los ejemplos:
+     * el cliente pidió validar contra los archivos de salida del entrenamiento, no
+     * dejar la validación muda.
+     */
+    protected function referenceOutputsForSimilarity(AITraining $training): \Illuminate\Support\Collection
+    {
+        $usable = $training->examples()
+            ->where('excluido_few_shot', false)
+            ->where('audit_status', '!=', 'contaminated')
+            ->get();
+
+        return $usable->isNotEmpty()
+            ? $usable
+            : $training->examples()->get();
+    }
+
+    /**
+     * Une la validación determinística del prompt con el juez de similitud contra
+     * las salidas de entrenamiento. Una generación es válida solo si pasa ambas.
+     *
+     * @param array<string, mixed> $promptValidation
+     * @param array<string, mixed> $similarityValidation
+     * @return array<string, mixed>
+     */
+    protected function mergeValidationResults(array $promptValidation, array $similarityValidation): array
+    {
+        $feedbackParts = array_filter([
+            $promptValidation['feedback_for_ai'] ?? null,
+            $similarityValidation['feedback_for_ai'] ?? null,
+        ]);
+
+        $promptMetrics = $promptValidation['metrics'] ?? [];
+        $promptMetrics['training_output_similarity'] = [
+            'status' => $similarityValidation['status'] ?? null,
+            'threshold' => $similarityValidation['threshold'] ?? null,
+            'best_score' => $similarityValidation['best_score'] ?? null,
+            'best_reference' => $similarityValidation['best_reference'] ?? null,
+            'comparisons' => $similarityValidation['comparisons'] ?? [],
+        ];
+
+        return array_merge($promptValidation, [
+            'valid' => (bool) ($promptValidation['valid'] ?? true)
+                && (bool) ($similarityValidation['valid'] ?? true),
+            'violations' => array_merge(
+                $promptValidation['violations'] ?? [],
+                $similarityValidation['violations'] ?? []
+            ),
+            'metrics' => $promptMetrics,
+            'feedback_for_ai' => !empty($feedbackParts) ? implode("\n\n", $feedbackParts) : null,
+        ]);
+    }
+
+    /**
+     * Valida el contenido generado con dos compuertas:
+     * 1) reglas explícitas del prompt/admin;
+     * 2) similitud contra los archivos de salida del entrenamiento.
+     */
+    protected function validateGeneratedOutput(string $generatedContent, ?string $customPrompt, iterable $similarityReferences): array
+    {
+        $promptValidation = $this->validator->validate($generatedContent, $customPrompt);
+        $similarityValidation = $this->similarityJudge()->judge($generatedContent, $similarityReferences);
+
+        return $this->mergeValidationResults($promptValidation, $similarityValidation);
+    }
+
+    /**
      * Genera una salida basándose en el entrenamiento y nuevos archivos de entrada
      */
     public function generateOutput(AITraining $training, array $inputFiles, ?string $model = null): array
@@ -459,9 +558,16 @@ PROMPT;
                 . "Si necesitás expresar la idea, reformulá usando sinónimos. Una sola aparición se considera una violación grave.";
         }
 
+        // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
+        // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
+        // (palabras prohibidas, secciones extra, justificaciones) que el cliente
+        // explícitamente rechaza.
+        $modoEstricto = (bool) ($training->reportType->modo_estricto ?? false);
+        $referencePolicyContent = $modoEstricto ? '' : $this->referenceModelPolicyPrompt();
+
         // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token).
-        // Sumamos el mensaje de palabras prohibidas porque también ocupa contexto.
-        $systemTokens = (int)((strlen($training->system_prompt) + strlen($globalForbiddenContent)) / 4);
+        // Sumamos los mensajes adicionales porque también ocupan contexto.
+        $systemTokens = (int)((strlen($training->system_prompt) + strlen($globalForbiddenContent) + strlen($referencePolicyContent)) / 4);
         $inputTokens = (int)(strlen($inputContent) / 4);
         $reserveForOutput = $maxOutputTokens;
 
@@ -474,6 +580,13 @@ PROMPT;
                 'content' => $training->system_prompt,
             ],
         ];
+
+        if (!$modoEstricto) {
+            $messages[] = [
+                'role' => 'system',
+                'content' => $referencePolicyContent,
+            ];
+        }
 
         if ($globalForbiddenContent !== '') {
             $messages[] = [
@@ -523,11 +636,6 @@ PROMPT;
             }
         }
 
-        // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
-        // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
-        // (palabras prohibidas, secciones extra, justificaciones) que el cliente
-        // explícitamente rechaza.
-        $modoEstricto = (bool) ($training->reportType->modo_estricto ?? false);
         // Pre-extraemos los límites de palabras del prompt del cliente para que el
         // truncado de los few-shot escale con el pedido. Sin esto, un cap fijo
         // (ej. 4000 chars ≈ 600 palabras) ahorca al modelo cuando el usuario pide
@@ -541,16 +649,16 @@ PROMPT;
             : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples);
 
         foreach ($examples as $example) {
-            // El resultado debe PARECERSE al documento de ENTRADA de referencia. Por eso ese
-            // documento (input_content) es el MODELO que el modelo debe replicar — NO la salida
-            // del ejemplo. Lo presentamos como referencia y el asistente confirma que la imita.
+            // El resultado debe PARECERSE al archivo de SALIDA de referencia. Por eso ese
+            // documento (output_content) es el MODELO que el modelo debe replicar y el mismo
+            // criterio que luego valida el juez de similitud.
             $messages[] = [
                 'role' => 'user',
-                'content' => "## DOCUMENTO DE REFERENCIA ({$example['capitulo']})\n\n"
+                'content' => "## DOCUMENTO DE SALIDA DE REFERENCIA ({$example['capitulo']})\n\n"
                     . "Este documento es el MODELO de cómo debe verse el resultado: su estructura, "
                     . "su formato, su profundidad de desarrollo y su estilo de redacción. Cuando te "
                     . "pase los datos crudos, generá un documento que REPLIQUE este modelo.\n\n"
-                    . $example['input'],
+                    . $example['output'],
             ];
             $messages[] = [
                 'role' => 'assistant',
@@ -577,9 +685,9 @@ PROMPT;
                     . "fechas, hechos); no inventes nada que no esté acá.";
             $userMessage = "## DATOS CRUDOS A PROCESAR\n\n"
                 . "Generá un documento que REPLIQUE la estructura, el formato, la profundidad y el "
-                . "estilo de los DOCUMENTOS DE REFERENCIA anteriores (los documentos de ENTRADA). "
+                . "estilo de los DOCUMENTOS DE SALIDA DE REFERENCIA anteriores. "
                 . "{$clausulaFuente} El documento final debe PARECERSE "
-                . "a los documentos de ENTRADA de referencia, no quedarse en un resumen de estos datos "
+                . "a los archivos de SALIDA de referencia, no quedarse en un resumen de estos datos "
                 . "crudos. Si las instrucciones del usuario en el system prompt contradicen el formato "
                 . "de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"
                 . "{$inputContent}";
@@ -595,6 +703,7 @@ PROMPT;
 
         try {
             $customPrompt = $training->reportType->prompt ?? null;
+            $similarityReferences = $this->referenceOutputsForSimilarity($training);
             $totalUsage = ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
             $generatedContent = '';
             $validationHistory = [];
@@ -647,7 +756,7 @@ PROMPT;
                     ];
                 }
 
-                $validation = $this->validator->validate($generatedContent, $customPrompt);
+                $validation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
                 $validationHistory[] = [
                     'attempt' => $attempt + 1,
                     'valid' => $validation['valid'],
@@ -681,7 +790,7 @@ PROMPT;
             if ($sanitized) {
                 Log::info("Saneo final aplicado: palabras prohibidas removidas a nivel código.");
                 $generatedContent = $sanitizedContent;
-                $finalValidation = $this->validator->validate($generatedContent, $customPrompt);
+                $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
             }
 
             // Truncado determinístico final por límite de palabras. Los LLMs no cuentan
@@ -698,7 +807,7 @@ PROMPT;
                     Log::info("Truncado final aplicado: contenido cortado al límite de {$wordLimits['max']} palabras.");
                     $generatedContent = $truncatedContent;
                     $truncated = true;
-                    $finalValidation = $this->validator->validate($generatedContent, $customPrompt);
+                    $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
                 }
             }
 

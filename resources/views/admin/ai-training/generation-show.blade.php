@@ -306,7 +306,36 @@
 
                 @php
                     $validationViolations = $generation->validation_result['violations'] ?? [];
+                    $similarityMetric = $generation->validation_result['metrics']['training_output_similarity'] ?? null;
                 @endphp
+                @if(!empty($similarityMetric) && isset($similarityMetric['best_score']))
+                    @php
+                        $similarityPercent = (int) round(($similarityMetric['best_score'] ?? 0) * 100);
+                        $similarityThreshold = (int) round(($similarityMetric['threshold'] ?? 0) * 100);
+                        $bestReference = $similarityMetric['best_reference'] ?? [];
+                    @endphp
+                    <div class="mb-4 p-3 rounded-hando bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+                        <details>
+                            <summary class="text-sm font-semibold text-blue-800 dark:text-blue-300 cursor-pointer">
+                                Juez de similitud contra salidas de entrenamiento:
+                                {{ $similarityPercent }}%
+                                <span class="font-normal">(mínimo {{ $similarityThreshold }}%)</span>
+                            </summary>
+                            <div class="mt-2 text-xs text-hando-gray-700 dark:text-hando-gray-300 space-y-1">
+                                <p>
+                                    Mejor referencia:
+                                    <span class="font-semibold">
+                                        {{ $bestReference['capitulo'] ?? 'Sin capítulo' }}
+                                    </span>
+                                    @if(isset($bestReference['grupo_id']))
+                                        · Grupo {{ $bestReference['grupo_id'] }}
+                                    @endif
+                                </p>
+                                <p>Evalúa vocabulario técnico, encabezados, estructura, longitud relativa y frases compartidas.</p>
+                            </div>
+                        </details>
+                    </div>
+                @endif
                 @if(!empty($validationViolations))
                     <div class="mb-4 p-3 rounded-hando bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800">
                         <details>
