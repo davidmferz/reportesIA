@@ -243,6 +243,8 @@ class AITrainingController extends Controller
      */
     public function showGeneration(ReportType $reportType, AIGeneration $generation)
     {
+        $this->assertGenerationBelongsToReportType($reportType, $generation);
+
         $generation->load(['user', 'chapter']);
         return view('admin.ai-training.generation-show', compact('reportType', 'generation'));
     }
@@ -266,6 +268,8 @@ class AITrainingController extends Controller
      */
     public function destroyGeneration(ReportType $reportType, AIGeneration $generation)
     {
+        $this->assertGenerationBelongsToReportType($reportType, $generation);
+
         // Eliminar archivos temporales
         Storage::disk('local')->deleteDirectory('ai_generations/' . $generation->id);
 
@@ -280,6 +284,8 @@ class AITrainingController extends Controller
      */
     public function downloadGeneration(ReportType $reportType, AIGeneration $generation)
     {
+        $this->assertGenerationBelongsToReportType($reportType, $generation);
+
         if (!$generation->output_content) {
             return redirect()->back()
                 ->with('error', 'No hay contenido para descargar.');
@@ -287,7 +293,7 @@ class AITrainingController extends Controller
 
         $filename = Str::slug($generation->titulo ?? 'documento-generado') . '.md';
         $content = "# {$generation->titulo}\n\n";
-        $content .= "**Generado el:** " . $generation->generated_at->format('d/m/Y H:i') . "\n";
+        $content .= "**Generado el:** " . ($generation->generated_at?->format('d/m/Y H:i') ?? 'No disponible') . "\n";
         $content .= "**Tipo de Reporte:** {$reportType->nombre}\n\n";
         $content .= "---\n\n";
         $content .= $generation->output_content;
@@ -295,5 +301,15 @@ class AITrainingController extends Controller
         return response($content)
             ->header('Content-Type', 'text/markdown')
             ->header('Content-Disposition', "attachment; filename=\"{$filename}\"");
+    }
+
+    private function assertGenerationBelongsToReportType(ReportType $reportType, AIGeneration $generation): void
+    {
+        $generation->loadMissing('training');
+
+        abort_unless(
+            $generation->training && $generation->training->report_type_id === $reportType->id,
+            404
+        );
     }
 }

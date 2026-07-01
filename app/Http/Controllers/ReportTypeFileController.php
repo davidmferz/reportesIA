@@ -145,7 +145,7 @@ class ReportTypeFileController extends Controller
         $reportType->load(['files' => function($query) {
             $query->with('creator')
                   ->orderBy('grupo_id')
-                  ->orderByRaw("FIELD(tipo_archivo, 'salida', 'entrada')")
+                  ->orderByRaw("CASE tipo_archivo WHEN 'salida' THEN 0 WHEN 'entrada' THEN 1 ELSE 2 END")
                   ->latest();
         }]);
 
