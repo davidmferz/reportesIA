@@ -128,4 +128,47 @@ class AITrainingPromptTest extends TestCase
             $this->assertStringNotContainsString('POLÍTICA ACTUAL DE REFERENCIA', $message['content']);
         }
     }
+
+    /**
+     * El cliente exige un texto verbatim de "Reglas para la obtención de información"
+     * cuando usa_internet está activo y la búsqueda devolvió resultados (used=true).
+     * Este mensaje REEMPLAZA al encabezado genérico anterior ("DATOS COMPLEMENTARIOS
+     * OBTENIDOS DE INTERNET..."). Extraído a un seam puro (buildInternetRulesMessage)
+     * para poder blindar el contrato textual sin llamar a OpenAI, igual que
+     * buildReferenceExampleMessages().
+     */
+    public function test_reglas_de_internet_verbatim(): void
+    {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildInternetRulesMessage');
+
+        $brief = 'Brief de ejemplo con datos y FUENTES: https://ejemplo.com';
+        $mensaje = $method->invoke($service, $brief);
+
+        $this->assertStringContainsString('Reglas para la obtención de información', $mensaje);
+        $this->assertStringContainsString('Los documentos de entrada proporcionados', $mensaje);
+        $this->assertStringContainsString('[Información no disponible]', $mensaje);
+        $this->assertStringContainsString(
+            'prevalecerá siempre la información contenida en los documentos de entrada',
+            $mensaje
+        );
+        $this->assertStringContainsString($brief, $mensaje);
+    }
+
+    /**
+     * El bloque verbatim reemplaza por completo al encabezado viejo: no debe quedar
+     * texto residual de la versión anterior ("DATOS COMPLEMENTARIOS OBTENIDOS DE
+     * INTERNET" / "NUNCA contradigas ni reemplaces los datos crudos"), porque
+     * conviven mal con la nueva jerarquía de prioridades del cliente.
+     */
+    public function test_reglas_de_internet_reemplazan_encabezado_viejo(): void
+    {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildInternetRulesMessage');
+
+        $mensaje = $method->invoke($service, 'Brief de ejemplo.');
+
+        $this->assertStringNotContainsString('DATOS COMPLEMENTARIOS OBTENIDOS DE INTERNET', $mensaje);
+        $this->assertStringNotContainsString('NUNCA contradigas ni reemplaces los datos crudos', $mensaje);
+    }
 }

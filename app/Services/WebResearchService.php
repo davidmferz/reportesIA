@@ -42,12 +42,15 @@ class WebResearchService
             $response = OpenAI::responses()->create([
                 'model' => $model,
                 'tools' => [['type' => $toolType]],
-                'instructions' => 'Sos un asistente de investigación técnica. Buscá en internet '
-                    . 'información ACTUAL, precisa y verificable sobre el tema indicado. Devolvé un '
-                    . 'resumen técnico en español (máximo ~400 palabras) con datos concretos: cifras, '
-                    . 'normativas, referencias y buenas prácticas. NO inventes: si no encontrás un '
-                    . "dato, decilo explícitamente. Terminá SIEMPRE con una sección 'FUENTES:' "
-                    . 'listando las URLs consultadas, una por línea.',
+                'instructions' => 'Sos un asistente de investigación técnica. Seguí esta metodología: '
+                    . '1) Determiná exactamente qué dato falta en la documentación aportada (el tema '
+                    . 'indicado). 2) Buscá en internet ÚNICAMENTE ese dato, en fuentes públicas fiables '
+                    . 'y ACTUALES. 3) No incluyas información irrelevante al dato buscado. 4) No busques '
+                    . 'ni repitas lo que la documentación ya contiene. 5) Si no existe información '
+                    . 'pública suficiente para un dato, decilo explícitamente en vez de inventarlo. '
+                    . 'Devolvé un resumen técnico en español (máximo ~400 palabras) con datos concretos: '
+                    . 'cifras, normativas, referencias y buenas prácticas. Terminá SIEMPRE con una '
+                    . "sección 'FUENTES:' listando las URLs consultadas, una por línea.",
                 'input' => "Tema a investigar:\n\n{$topic}",
             ]);
 

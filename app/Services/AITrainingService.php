@@ -390,6 +390,55 @@ PROMPT;
      * y el assistant confirma el aprendizaje del patrón. Método puro (sin llamadas a
      * OpenAI) para poder testear el few-shot sin mockear la API.
      */
+    /**
+     * Mensaje system de "Reglas para la obtención de información" que acompaña al
+     * brief de internet cuando usa_internet está activo y la búsqueda devolvió
+     * datos (used=true). El texto es VERBATIM (exigencia del cliente): define la
+     * jerarquía de fuentes (documentos de entrada > internet > "[Información no
+     * disponible]") y los usos permitidos/prohibidos de los datos externos.
+     * Extraído como seam puro (sin llamar a OpenAI) para poder testear el
+     * contrato textual, igual que buildReferenceExampleMessages().
+     */
+    protected function buildInternetRulesMessage(string $brief): string
+    {
+        $reglas = <<<'TEXTO'
+Reglas para la obtención de información
+
+La información debe obtenerse siguiendo este orden de prioridad:
+
+1. Los documentos de entrada proporcionados.
+2. Información pública y verificable disponible en Internet.
+3. Si la información no puede obtenerse de ninguna de las dos fuentes anteriores, indicar [Información no disponible].
+
+Nunca sustituyas información específica del caso por información genérica encontrada en Internet.
+
+La información obtenida en Internet únicamente debe utilizarse para:
+
+- completar datos objetivos que falten;
+- identificar legislación aplicable;
+- obtener información pública sobre empresas, organismos o productos;
+- completar definiciones técnicas;
+- ampliar información normativa;
+- localizar estándares o referencias oficiales.
+
+Nunca inventes información.
+
+Si utilizas información obtenida en Internet:
+
+- intégrala de forma natural en el documento;
+- verifica que procede de fuentes fiables;
+- asegúrate de que es coherente con el resto de la documentación aportada.
+
+Si existen discrepancias entre los documentos de entrada y la información encontrada en Internet, prevalecerá siempre la información contenida en los documentos de entrada y la discrepancia deberá indicarse en el apartado de observaciones.
+
+Si tras consultar Internet la información sigue sin poder determinarse, indicar:
+
+[Información no disponible]
+TEXTO;
+
+        return $reglas . "\n\nDATOS OBTENIDOS DE INTERNET (con fuentes citadas):\n\n" . $brief;
+    }
+
     protected function buildReferenceExampleMessages(array $examples): array
     {
         $messages = [];
@@ -610,11 +659,7 @@ PROMPT;
                 Log::info('Datos de internet incorporados a la generación. Fuentes: ' . count($research['sources']));
                 $messages[] = [
                     'role' => 'system',
-                    'content' => "DATOS COMPLEMENTARIOS OBTENIDOS DE INTERNET (con fuentes citadas).\n"
-                        . "Integralos para enriquecer y contextualizar el documento JUNTO con los datos "
-                        . "del cliente. Citá la fuente cuando uses un dato externo. NUNCA contradigas ni "
-                        . "reemplaces los datos crudos del cliente: estos datos son complementarios.\n\n"
-                        . $research['brief'],
+                    'content' => $this->buildInternetRulesMessage($research['brief']),
                 ];
             }
         }
