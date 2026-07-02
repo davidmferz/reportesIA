@@ -29,3 +29,6 @@ docs/*.sql
 # Material de presentación / notas internas de demo
 docs/presentacion/GUION-DEMO.md
 docs/comparacion-tipo4.md
+
+# SDD skill-registry cache (regenerable, not an SDD artifact)
+/.atl

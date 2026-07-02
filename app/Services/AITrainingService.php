@@ -133,8 +133,6 @@ class AITrainingService
                 ->groupBy('grupo_id');
 
             $examplesProcessed = 0;
-            $allInputContents = [];
-            $allOutputContents = [];
 
             foreach ($fileGroups as $grupoId => $files) {
                 $archivosEntrada = $files->where('tipo_archivo', 'entrada');
@@ -158,10 +156,6 @@ class AITrainingService
                 $outputContent = $this->extractor->extractText($archivoSalida->ruta);
                 $this->assertExtractionUsable($outputContent, $archivoSalida->nombre_original, $archivoSalida->ruta);
 
-                // Guardar para análisis de patrones
-                $allInputContents[] = $inputContent;
-                $allOutputContents[] = $outputContent;
-
                 // Crear o actualizar el ejemplo de entrenamiento
                 AITrainingExample::updateOrCreate(
                     [
@@ -180,11 +174,10 @@ class AITrainingService
                 $examplesProcessed++;
             }
 
-            // Construir el prompt del sistema con análisis de patrones.
-            // El cliente quiere que la generación se parezca a los archivos de SALIDA
-            // del entrenamiento. Por eso los patrones salen de las salidas, igual que
-            // el juez de similitud que valida el resultado final.
-            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType, $allOutputContents);
+            // Construir el prompt del sistema. El Prompt Maestro (Anexo de la proposal)
+            // ya enseña el patrón de transformación ENTRADA→SALIDA vía few-shot; no
+            // hace falta análisis textual de patrones sobre las salidas.
+            $systemPrompt = $this->buildEnhancedSystemPrompt($reportType);
 
             // Actualizar el entrenamiento con el prompt del sistema generado
             $training->update([
@@ -237,7 +230,7 @@ class AITrainingService
      * Construye un prompt del sistema. Las instrucciones del cliente tienen MÁXIMA prioridad
      * y NUNCA pueden ser contradichas por reglas del sistema.
      */
-    protected function buildEnhancedSystemPrompt(ReportType $reportType, array $referenceContents): string
+    protected function buildEnhancedSystemPrompt(ReportType $reportType): string
     {
         $customPrompt = $reportType->prompt ? trim($reportType->prompt) : '';
         $modoEstricto = (bool) ($reportType->modo_estricto ?? false);
@@ -246,7 +239,7 @@ class AITrainingService
             return $this->buildStrictSystemPrompt($reportType, $customPrompt);
         }
 
-        return $this->buildStandardSystemPrompt($reportType, $customPrompt, $referenceContents);
+        return $this->buildStandardSystemPrompt($reportType, $customPrompt);
     }
 
     /**
@@ -278,166 +271,153 @@ PROMPT;
     }
 
     /**
-     * Override runtime para entrenamientos ya existentes.
-     *
-     * El system_prompt vive persistido en DB; cambiar processTraining() solo afecta
-     * re-entrenamientos futuros. Esta política evita que un entrenamiento viejo siga
-     * empujando a "parecerse a ENTRADA" mientras el juez valida contra SALIDA.
+     * Modo estándar: el Prompt Maestro (Anexo de la proposal "Integrar el Prompt
+     * Maestro en la generación estándar") es la ÚNICA instrucción canónica. Enseña
+     * al modelo, vía el caso de referencia (few-shot en generateOutput), el patrón
+     * de transformación ENTRADA→SALIDA. Texto literal — no parafrasear: el cliente
+     * pidió exactamente esta redacción.
      */
-    protected function referenceModelPolicyPrompt(): string
+    protected function buildStandardSystemPrompt(ReportType $reportType, string $customPrompt): string
     {
-        return <<<PROMPT
-## POLÍTICA ACTUAL DE REFERENCIA (PRIORIDAD SOBRE PROMPTS DE ENTRENAMIENTO VIEJOS)
-El documento generado debe parecerse a los archivos de SALIDA del entrenamiento.
-Si algún prompt almacenado anteriormente dice que el molde son documentos de ENTRADA,
-esa instrucción queda reemplazada: el molde visual, estructural, de profundidad y estilo
-son las SALIDAS de referencia.
-Los documentos de entrada del usuario siguen siendo la fuente de HECHOS específicos
-(cifras, nombres, fechas, mediciones); no copies datos específicos de las salidas de ejemplo.
-PROMPT;
-    }
-
-    /**
-     * Modo estándar: usa ejemplos y patrones, pero el prompt del cliente sigue mandando
-     * sobre las reglas del sistema.
-     */
-    protected function buildStandardSystemPrompt(ReportType $reportType, string $customPrompt, array $referenceContents): string
-    {
-        $patternAnalysis = $this->analyzeReferencePatterns($referenceContents, $customPrompt);
-
         $customPromptSection = '';
         if (!empty($customPrompt)) {
             $customPromptSection = <<<CUSTOM
 
 ## INSTRUCCIONES DEL USUARIO (PRIORIDAD MÁXIMA)
-Estas instrucciones son la PRIMERA ley. Si alguna regla posterior o algún patrón de los
-ejemplos las contradice, GANAN estas instrucciones. No las amplíes ni las interpretes.
+Estas instrucciones son la PRIMERA ley. Si alguna regla posterior del maestro las
+contradice, GANAN estas instrucciones. No las amplíes ni las interpretes.
 
 {$customPrompt}
 
 CUSTOM;
         }
 
-        $prompt = <<<PROMPT
-Generás documentos del tipo "{$reportType->nombre}" a partir de los archivos de entrada.
+        return <<<PROMPT
+Eres un consultor experto especializado en elaborar documentos técnicos.
+
+Tu objetivo es aprender la forma de redactar del ejemplo proporcionado.
 {$customPromptSection}
-## ROL
-Tu tarea es GENERAR un documento que REPLIQUE la ESTRUCTURA, el FORMATO, la PROFUNDIDAD y el
-ESTILO de los DOCUMENTOS DE REFERENCIA (los archivos de SALIDA del entrenamiento). Esos
-archivos de SALIDA son el MODELO de cómo debe verse el resultado. Los datos crudos que recibís
-para procesar son ÚNICAMENTE la fuente de información: extraé de ellos los hechos, pero el
-documento final debe PARECERSE a los archivos de SALIDA de referencia. Mantené fidelidad
-estricta a la información provista. Si las instrucciones del usuario piden otra cosa, seguilas a ellas.
+Fase 1. Aprendizaje
 
-## PROCESO
-1. Extraé los datos clave de los datos crudos a procesar (cifras, nombres, fechas, hechos).
-2. Volcá esa información con la MISMA estructura, formato y profundidad de los archivos de SALIDA de referencia.
-3. Seguí las instrucciones del usuario cuando las haya; en lo demás, imitá los archivos de SALIDA de referencia.
-4. NO inventes datos que no estén en la información provista.
+Se te proporcionarán:
 
-## PATRONES DE REFERENCIA (NO obligatorios si el usuario pide otra cosa)
-{$patternAnalysis}
+- Uno o varios documentos de entrada del CASO DE REFERENCIA.
+- El documento final generado para ese caso.
 
-## REGLAS BASE
-- No inventes información que no esté en los documentos de entrada.
-- Si falta información necesaria, indicá qué falta en lugar de rellenar.
-- Respetá la longitud y el tono solicitados por el usuario.
+Debes analizar ambos conjuntos de documentos y decidir:
+
+- qué información se extrae de los documentos de entrada
+- qué información se descarta
+- qué información se resume
+- qué conclusiones se generan
+- qué estilo de redacción utiliza el consultor
+- qué estructura tiene el documento
+- qué títulos aparecen
+- qué tablas utiliza
+- qué formato tienen las listas
+- qué tono emplea
+- qué longitud suele tener cada apartado
+
+No debes copiar literalmente el contenido.
+
+Debes aprender el patrón de transformación.
+
+Fase 2. Generación
+
+Después recibirás un nuevo conjunto de documentos de entrada.
+
+Tu tarea consiste en generar un documento nuevo siguiendo exactamente:
+
+- la misma estructura
+- los mismos títulos
+- el mismo orden
+- el mismo nivel de detalle
+- el mismo estilo de escritura
+- el mismo tipo de conclusiones
+- el mismo formato de tablas
+- el mismo formato de numeración
+
+La salida debe parecer redactada por la misma persona que realizó el documento de referencia.
+
+Reglas
+
+Nunca inventes datos.
+
+Si un dato no aparece en los documentos de entrada:
+
+- deja el apartado vacío indicando [Información no disponible]
+- o indícalo explícitamente en las observaciones.
+
+Si varios documentos contienen información contradictoria:
+
+- indícalo.
+
+Si falta información necesaria para completar un apartado:
+
+- indícalo.
+
+No cambies la estructura del documento.
+
+No elimines apartados.
+
+No añadas apartados nuevos.
+
+Objetivo principal
+
+Si los documentos de entrada fueran exactamente iguales a los del caso de referencia, el documento generado debería ser prácticamente idéntico al documento de salida de referencia.
+
+Si cambian únicamente algunos datos, únicamente deben cambiar las partes relacionadas con esos datos.
+
+Todo el resto del documento debe permanecer igual.
+
+Calidad
+
+Antes de responder verifica:
+
+- que todos los apartados del documento original existen
+- que ninguna sección ha desaparecido
+- que la numeración coincide
+- que las tablas conservan el mismo formato
+- que todas las conclusiones están justificadas por la documentación de entrada.
+
+Genera únicamente el documento final.
 PROMPT;
-
-        return $prompt;
     }
 
     /**
-     * Analiza los patrones comunes (encabezados/secciones) en los DOCUMENTOS DE REFERENCIA
-     * (los archivos de SALIDA del entrenamiento). Son el modelo de cómo debe verse el resultado.
+     * Arma los pares user/assistant del few-shot (Fase 1 del maestro): cada caso de
+     * referencia se presenta como DOCUMENTOS DE ENTRADA + DOCUMENTO FINAL GENERADO,
+     * y el assistant confirma el aprendizaje del patrón. Método puro (sin llamadas a
+     * OpenAI) para poder testear el few-shot sin mockear la API.
      */
-    protected function analyzeReferencePatterns(array $referenceContents, ?string $customPrompt = null): string
+    protected function buildReferenceExampleMessages(array $examples): array
     {
-        if (empty($referenceContents)) {
-            return "No se detectaron patrones específicos.";
+        $messages = [];
+        $numero = 0;
+
+        foreach ($examples as $example) {
+            $numero++;
+            $capitulo = $example['capitulo'] ?? null;
+            $titulo = "## CASO DE REFERENCIA {$numero}" . ($capitulo ? " ({$capitulo})" : '');
+
+            $messages[] = [
+                'role' => 'user',
+                'content' => "{$titulo}\n\n"
+                    . "### DOCUMENTOS DE ENTRADA\n\n"
+                    . ($example['input'] ?? '') . "\n\n"
+                    . "### DOCUMENTO FINAL GENERADO\n\n"
+                    . ($example['output'] ?? ''),
+            ];
+            $messages[] = [
+                'role' => 'assistant',
+                'content' => "Comprendido. Aprendí el patrón de transformación de este caso de referencia "
+                    . "(Fase 1): qué información se extrae, descarta y resume, qué conclusiones se generan, "
+                    . "y qué estructura, títulos, tablas, listas, tono y longitud utiliza. Lo aplicaré al "
+                    . "generar el nuevo documento (Fase 2).",
+            ];
         }
 
-        // Filtrar headings que contienen palabras prohibidas según el prompt del cliente.
-        // Si los inyectamos como "secciones comunes", el modelo los reproduce aunque
-        // el prompt diga "no agregar secciones".
-        $forbiddenTerms = [];
-        if ($customPrompt !== null) {
-            $parser = new PromptParserService();
-            $forbiddenTerms = $parser->extractForbiddenTerms($customPrompt);
-        }
-
-        $patterns = [];
-
-        // Detectar encabezados comunes
-        $headings = [];
-        foreach ($referenceContents as $content) {
-            preg_match_all('/^#+\s*(.+)$/m', $content, $matches);
-            if (!empty($matches[1])) {
-                $headings = array_merge($headings, $matches[1]);
-            }
-            // También detectar encabezados en mayúsculas
-            preg_match_all('/^([A-ZÁÉÍÓÚÑ\s]{5,})$/m', $content, $capsMatches);
-            if (!empty($capsMatches[1])) {
-                $headings = array_merge($headings, array_map('trim', $capsMatches[1]));
-            }
-        }
-
-        // Filtrar headings contaminados con palabras prohibidas
-        if (!empty($forbiddenTerms)) {
-            $headings = array_filter($headings, function ($h) use ($forbiddenTerms) {
-                $lower = mb_strtolower($h, 'UTF-8');
-                foreach ($forbiddenTerms as $term) {
-                    if ($term !== '' && mb_strpos($lower, $term) !== false) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-        }
-
-        // Contar frecuencia de encabezados
-        $headingCounts = array_count_values($headings);
-        arsort($headingCounts);
-        $commonHeadings = array_slice(array_keys($headingCounts), 0, 10);
-
-        if (!empty($commonHeadings)) {
-            $patterns[] = "**Secciones comunes detectadas:**";
-            foreach ($commonHeadings as $heading) {
-                $patterns[] = "- " . trim($heading);
-            }
-        }
-
-        // Detectar si hay tablas
-        $hasTables = false;
-        foreach ($referenceContents as $content) {
-            if (preg_match('/\|.*\|/', $content)) {
-                $hasTables = true;
-                break;
-            }
-        }
-        if ($hasTables) {
-            $patterns[] = "\n**Formato:** Los documentos incluyen tablas con formato Markdown";
-        }
-
-        // Detectar si hay listas
-        $hasLists = false;
-        foreach ($referenceContents as $content) {
-            if (preg_match('/^[\-\*\d+\.]\s+/m', $content)) {
-                $hasLists = true;
-                break;
-            }
-        }
-        if ($hasLists) {
-            $patterns[] = "**Formato:** Los documentos incluyen listas numeradas o con viñetas";
-        }
-
-        // Nota: NO inyectamos "longitud típica" calculada de los ejemplos. Si el usuario
-        // pide longitud explícita en su prompt (p. ej. "más de 2000 palabras"), una línea
-        // contradictoria acá ("extensión corta, ~51 caracteres") confunde al modelo.
-        // La longitud real está cubierta por: (1) validación + reintentos con feedback,
-        // (2) truncado post-hoc, (3) los propios ejemplos few-shot que la IA ve.
-
-        return implode("\n", $patterns);
+        return $messages;
     }
 
     /**
@@ -563,11 +543,21 @@ PROMPT;
         // (palabras prohibidas, secciones extra, justificaciones) que el cliente
         // explícitamente rechaza.
         $modoEstricto = (bool) ($training->reportType->modo_estricto ?? false);
-        $referencePolicyContent = $modoEstricto ? '' : $this->referenceModelPolicyPrompt();
+
+        // Modo estándar: el system se reconstruye en RUNTIME con el Prompt Maestro,
+        // ignorando el system_prompt persistido — así los entrenamientos viejos quedan
+        // alineados sin re-entrenar. Modo estricto: el system_prompt persistido sigue
+        // siendo la única ley (sin cambios).
+        $customPromptForSystem = $training->reportType->prompt ? trim($training->reportType->prompt) : '';
+        $systemPromptContent = $modoEstricto
+            ? $training->system_prompt
+            : $this->buildStandardSystemPrompt($training->reportType, $customPromptForSystem);
 
         // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token).
-        // Sumamos los mensajes adicionales porque también ocupan contexto.
-        $systemTokens = (int)((strlen($training->system_prompt) + strlen($globalForbiddenContent) + strlen($referencePolicyContent)) / 4);
+        // Sumamos los mensajes adicionales porque también ocupan contexto. Usamos el
+        // prompt runtime real (no el system_prompt persistido) para que el presupuesto
+        // de ejemplos refleje lo que efectivamente se envía en modo estándar.
+        $systemTokens = (int)((strlen($systemPromptContent) + strlen($globalForbiddenContent)) / 4);
         $inputTokens = (int)(strlen($inputContent) / 4);
         $reserveForOutput = $maxOutputTokens;
 
@@ -577,16 +567,9 @@ PROMPT;
         $messages = [
             [
                 'role' => 'system',
-                'content' => $training->system_prompt,
+                'content' => $systemPromptContent,
             ],
         ];
-
-        if (!$modoEstricto) {
-            $messages[] = [
-                'role' => 'system',
-                'content' => $referencePolicyContent,
-            ];
-        }
 
         if ($globalForbiddenContent !== '') {
             $messages[] = [
@@ -648,24 +631,10 @@ PROMPT;
             ? []
             : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples);
 
-        foreach ($examples as $example) {
-            // El resultado debe PARECERSE al archivo de SALIDA de referencia. Por eso ese
-            // documento (output_content) es el MODELO que el modelo debe replicar y el mismo
-            // criterio que luego valida el juez de similitud.
-            $messages[] = [
-                'role' => 'user',
-                'content' => "## DOCUMENTO DE SALIDA DE REFERENCIA ({$example['capitulo']})\n\n"
-                    . "Este documento es el MODELO de cómo debe verse el resultado: su estructura, "
-                    . "su formato, su profundidad de desarrollo y su estilo de redacción. Cuando te "
-                    . "pase los datos crudos, generá un documento que REPLIQUE este modelo.\n\n"
-                    . $example['output'],
-            ];
-            $messages[] = [
-                'role' => 'assistant',
-                'content' => "Comprendido. Replicaré la estructura, el formato, la profundidad y el "
-                    . "estilo de este documento de referencia al generar la salida.",
-            ];
-        }
+        // Few-shot: cada ejemplo se presenta como par ENTRADA→SALIDA (Fase 1 del
+        // maestro), no solo la salida — así el modelo aprende qué se extrae, descarta
+        // y resume de la entrada, no solo cómo luce el documento final.
+        $messages = array_merge($messages, $this->buildReferenceExampleMessages($examples));
 
         // Agregar el nuevo input del usuario
         if ($modoEstricto) {
@@ -683,13 +652,15 @@ PROMPT;
                     . "no inventes datos del cliente que no estén acá."
                 : "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
                     . "fechas, hechos); no inventes nada que no esté acá.";
-            $userMessage = "## DATOS CRUDOS A PROCESAR\n\n"
-                . "Generá un documento que REPLIQUE la estructura, el formato, la profundidad y el "
-                . "estilo de los DOCUMENTOS DE SALIDA DE REFERENCIA anteriores. "
-                . "{$clausulaFuente} El documento final debe PARECERSE "
-                . "a los archivos de SALIDA de referencia, no quedarse en un resumen de estos datos "
-                . "crudos. Si las instrucciones del usuario en el system prompt contradicen el formato "
-                . "de los ejemplos, PRIORIZÁ las instrucciones del usuario.\n\n"
+            // Fase 2 del maestro: replicar estructura, títulos, orden, detalle y estilo
+            // del CASO DE REFERENCIA sobre la nueva entrada — no solo "parecerse a la salida".
+            $userMessage = "## NUEVOS DOCUMENTOS DE ENTRADA (Fase 2)\n\n"
+                . "Generá el documento nuevo siguiendo exactamente la misma estructura, los mismos "
+                . "títulos, el mismo orden, el mismo nivel de detalle, el mismo estilo de escritura, "
+                . "el mismo tipo de conclusiones, el mismo formato de tablas y el mismo formato de "
+                . "numeración que el CASO DE REFERENCIA. {$clausulaFuente} Si las instrucciones del "
+                . "usuario en el system prompt contradicen el formato del caso de referencia, "
+                . "PRIORIZÁ las instrucciones del usuario.\n\n"
                 . "{$inputContent}";
         } else {
             $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
