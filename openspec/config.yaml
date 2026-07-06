@@ -1,0 +1,79 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Tech stack: Laravel 12 (PHP 8.2+), Breeze auth (Blade + Alpine.js + Tailwind 3), SQLite (dev), Vite.
+  Domain: AI-powered report generation (openai-php/laravel, phpoffice/phpspreadsheet,
+  phpoffice/phpword, smalot/pdfparser). Models: User, ReportType, ReportTypeFile, Chapter,
+  AIGeneration, AITraining, AITrainingExample, ForbiddenWord, ActivityLog.
+  Architecture: resource controllers (app/Http/Controllers, incl. Admin/*) + Blade views;
+  Services layer (app/Services: AITrainingService, DocumentExtractorService,
+  ExampleAuditorService, OutputSimilarityJudgeService, OutputValidatorService,
+  PromptParserService, WebResearchService); admin role via `is_admin` + `admin` middleware
+  alias (EnsureUserIsAdmin); ActivityLog audit trail via LogsActivity trait (polymorphic
+  subject/causer). See AGENTE.MD for full conventions.
+  Testing: PHPUnit 11.5 (tests/Unit, tests/Feature), run via `composer test` / `php artisan test`.
+  Style: Laravel Pint (default ruleset, no pint.json), no static analyzer configured.
+
+strict_tdd: true
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages (Controllers, Services, Models, Blade views, migrations)
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows (e.g. AI generation pipeline)
+    - Document architecture decisions with rationale
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing code patterns and conventions (see AGENTE.MD)
+    - Load relevant coding skills for the project stack
+    tdd: true
+    test_command: "composer test"
+  verify:
+    - Run tests if test infrastructure exists
+    - Compare implementation against every spec scenario
+    test_command: "composer test"
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas (large removals)
+
+testing:
+  strict_tdd_mode: true
+  detected: "2026-07-05"
+  test_runner:
+    command: "composer test"
+    underlying_command: "php artisan test"
+    framework: "PHPUnit 11.5"
+  test_layers:
+    unit:
+      available: true
+      tool: "PHPUnit (tests/Unit)"
+    integration:
+      available: true
+      tool: "Laravel Feature Tests (tests/Feature, Illuminate\\Foundation\\Testing + RefreshDatabase)"
+    e2e:
+      available: false
+      tool: null
+  coverage:
+    available: false
+    command: null
+    note: "No Xdebug/PCOV driver installed — `--coverage` flag would fail"
+  quality_tools:
+    linter:
+      available: true
+      command: "vendor/bin/pint --test"
+    type_checker:
+      available: false
+      command: null
+      note: "No PHPStan/Larastan/Psalm configured"
+    formatter:
+      available: true
+      command: "vendor/bin/pint"
