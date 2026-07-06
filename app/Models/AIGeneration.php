@@ -137,6 +137,74 @@ class AIGeneration extends Model
     }
 
     /**
+     * Contenido de salida listo para mostrar o descargar: la IA no puede producir
+     * imágenes reales, así que cualquier referencia a imagen (Markdown o <img>)
+     * apunta a un archivo inexistente. Se reemplaza por un placeholder legible
+     * tanto en el visor web (renderizado como Markdown) como en el .md descargado.
+     */
+    public function getDisplayOutputAttribute(): string
+    {
+        $content = $this->output_content;
+
+        if (!$content) {
+            return '';
+        }
+
+        $placeholder = function (string $alt, bool $standalone): string {
+            $alt = trim($alt);
+
+            if ($standalone) {
+                return $alt !== ''
+                    ? "> 📷 **Figura:** {$alt}"
+                    : '> 📷 **Figura referenciada en el documento original**';
+            }
+
+            return $alt !== ''
+                ? "📷 *[Figura: {$alt}]*"
+                : '📷 *[Figura referenciada]*';
+        };
+
+        $markdownImage = '!\[([^\]]*)\]\([^)]*\)';
+        $htmlImage = '<img\b[^>]*\/?>';
+
+        // Imágenes que ocupan una línea completa → placeholder en bloque (blockquote)
+        $content = preg_replace_callback(
+            '/^[ \t]*' . $markdownImage . '[ \t]*$/mu',
+            fn (array $m) => $placeholder($m[1], true),
+            $content
+        );
+
+        $content = preg_replace_callback(
+            '/^[ \t]*' . $htmlImage . '[ \t]*$/miu',
+            function (array $m) use ($placeholder) {
+                preg_match('/\balt\s*=\s*["\']([^"\']*)["\']/iu', $m[0], $alt);
+
+                return $placeholder($alt[1] ?? '', true);
+            },
+            $content
+        );
+
+        // Imágenes dentro de un párrafo → placeholder en línea
+        $content = preg_replace_callback(
+            '/' . $markdownImage . '/u',
+            fn (array $m) => $placeholder($m[1], false),
+            $content
+        );
+
+        $content = preg_replace_callback(
+            '/' . $htmlImage . '/iu',
+            function (array $m) use ($placeholder) {
+                preg_match('/\balt\s*=\s*["\']([^"\']*)["\']/iu', $m[0], $alt);
+
+                return $placeholder($alt[1] ?? '', false);
+            },
+            $content
+        );
+
+        return $content;
+    }
+
+    /**
      * Calcula el costo aproximado de la generación
      * (Basado en precios de GPT-4o-mini)
      */

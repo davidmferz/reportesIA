@@ -359,7 +359,7 @@
 
                 @if($generation->output_content)
                     <div class="bg-green-50 dark:bg-green-900/10 rounded-hando p-4 max-h-96 overflow-y-auto border border-green-200 dark:border-green-800 prose prose-sm dark:prose-invert max-w-none">
-                        {!! \Illuminate\Support\Str::markdown($generation->output_content) !!}
+                        {!! \Illuminate\Support\Str::markdown($generation->display_output) !!}
                     </div>
                 @else
                     <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-8 text-center">

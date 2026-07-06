@@ -296,7 +296,7 @@ class AITrainingController extends Controller
         $content .= "**Generado el:** " . ($generation->generated_at?->format('d/m/Y H:i') ?? 'No disponible') . "\n";
         $content .= "**Tipo de Reporte:** {$reportType->nombre}\n\n";
         $content .= "---\n\n";
-        $content .= $generation->output_content;
+        $content .= $generation->display_output;
 
         return response($content)
             ->header('Content-Type', 'text/markdown')
