@@ -53,7 +53,12 @@ class DocumentExtractorService
     protected function extractFromDocx(string $fullPath): string
     {
         try {
-            $phpWord = WordIOFactory::load($fullPath);
+            $reader = WordIOFactory::createReader('Word2007');
+            if (method_exists($reader, 'setImageLoading')) {
+                $reader->setImageLoading(false);
+            }
+
+            $phpWord = $reader->load($fullPath);
             $text = '';
 
             foreach ($phpWord->getSections() as $section) {
@@ -76,8 +81,90 @@ class DocumentExtractorService
 
             return trim($text);
         } catch (\Throwable $e) {
+            $fallbackText = $this->extractFromDocxXml($fullPath);
+            if ($fallbackText !== '') {
+                return $fallbackText;
+            }
+
             throw new \RuntimeException("Falló la extracción del DOCX: {$e->getMessage()}", 0, $e);
         }
+    }
+
+    /**
+     * Fallback para DOCX que PhpWord no puede cargar por contenido no textual
+     * corrupto o no soportado. Lee solo XML de Word y evita abrir media/*.
+     */
+    protected function extractFromDocxXml(string $fullPath): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($fullPath) !== true) {
+            return '';
+        }
+
+        try {
+            $xmlFiles = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if ($name === 'word/document.xml'
+                    || preg_match('/^word\/(header|footer)\d+\.xml$/', $name)
+                ) {
+                    $xmlFiles[] = $name;
+                }
+            }
+
+            sort($xmlFiles);
+            $text = '';
+
+            foreach ($xmlFiles as $name) {
+                $content = $zip->getFromName($name);
+                if ($content === false) {
+                    continue;
+                }
+
+                $document = new \DOMDocument();
+                $loaded = @$document->loadXML($content, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+                if (!$loaded || !$document->documentElement) {
+                    continue;
+                }
+
+                $text .= $this->extractTextFromDocxXmlNode($document->documentElement) . "\n";
+            }
+
+            return trim(preg_replace("/\n{3,}/", "\n\n", $text) ?? $text);
+        } finally {
+            $zip->close();
+        }
+    }
+
+    protected function extractTextFromDocxXmlNode(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText) {
+            return '';
+        }
+
+        $localName = $node->localName;
+        if ($localName === 't') {
+            return $node->textContent;
+        }
+        if ($localName === 'tab') {
+            return "\t";
+        }
+        if (in_array($localName, ['br', 'cr'], true)) {
+            return "\n";
+        }
+
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            $text .= $this->extractTextFromDocxXmlNode($child);
+        }
+
+        if (in_array($localName, ['p', 'tr'], true)) {
+            $text .= "\n";
+        } elseif ($localName === 'tc') {
+            $text .= "\t";
+        }
+
+        return $text;
     }
 
     /**
