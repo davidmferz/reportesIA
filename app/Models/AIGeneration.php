@@ -201,7 +201,73 @@ class AIGeneration extends Model
             $content
         );
 
-        return $content;
+        return $this->convertTabTablesToMarkdown($content);
+    }
+
+    /**
+     * La IA emite tablas con columnas separadas por tabuladores (copiadas del Word
+     * original), que GFM no reconoce y renderiza como párrafos aplanados. Convierte
+     * bloques de 2+ líneas consecutivas con tabs en tablas Markdown con pipes,
+     * usando la primera línea como encabezado.
+     */
+    private function convertTabTablesToMarkdown(string $content): string
+    {
+        $lines = explode("\n", $content);
+        $out = [];
+        $block = [];
+
+        $flush = function () use (&$block, &$out) {
+            if (count($block) < 2) {
+                array_push($out, ...$block);
+                $block = [];
+
+                return;
+            }
+
+            $rows = array_map(
+                fn (string $line) => array_map(
+                    fn (string $cell) => str_replace('|', '\\|', trim($cell)),
+                    explode("\t", $line)
+                ),
+                $block
+            );
+
+            $columns = max(array_map('count', $rows));
+            $rows = array_map(
+                fn (array $row) => array_pad($row, $columns, ''),
+                $rows
+            );
+
+            // GFM no permite que una tabla interrumpa un párrafo: separar del texto previo
+            if ($out !== [] && trim(end($out)) !== '') {
+                $out[] = '';
+            }
+
+            $toRow = fn (array $cells) => '| ' . implode(' | ', $cells) . ' |';
+
+            $out[] = $toRow(array_shift($rows));
+            $out[] = $toRow(array_fill(0, $columns, '---'));
+
+            foreach ($rows as $row) {
+                $out[] = $toRow($row);
+            }
+
+            $block = [];
+        };
+
+        foreach ($lines as $line) {
+            if (str_contains($line, "\t") && trim($line) !== '') {
+                $block[] = $line;
+                continue;
+            }
+
+            $flush();
+            $out[] = $line;
+        }
+
+        $flush();
+
+        return implode("\n", $out);
     }
 
     /**

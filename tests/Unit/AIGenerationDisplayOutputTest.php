@@ -110,4 +110,74 @@ class AIGenerationDisplayOutputTest extends TestCase
 
         $this->assertSame($contenido, $this->makeGeneration($contenido)->display_output);
     }
+
+    public function test_bloque_separado_por_tabs_se_convierte_en_tabla_markdown(): void
+    {
+        $contenido = "Esquema 1. Resumen de parámetros\n"
+            . "Parámetro\tObservación técnica\tRelevancia\n"
+            . "pH/CE del agua\tMedición necesaria\tDeterminante\n"
+            . "Presencia biológica\tAlgas y biofilm\tObstrucción de emisores\n"
+            . "\nTexto posterior.";
+
+        $resultado = $this->makeGeneration($contenido)->display_output;
+
+        $this->assertStringContainsString('| Parámetro | Observación técnica | Relevancia |', $resultado);
+        $this->assertStringContainsString('| --- | --- | --- |', $resultado);
+        $this->assertStringContainsString('| pH/CE del agua | Medición necesaria | Determinante |', $resultado);
+        $this->assertStringContainsString('| Presencia biológica | Algas y biofilm | Obstrucción de emisores |', $resultado);
+        $this->assertStringNotContainsString("\t", $resultado);
+        $this->assertStringContainsString('Texto posterior.', $resultado);
+    }
+
+    public function test_tabla_precedida_por_titulo_recibe_linea_en_blanco(): void
+    {
+        $contenido = "Tabla 1. Compatibilidad técnica\n"
+            . "Componente\tEspecificación\n"
+            . "Cintilla\tAutocompensada";
+
+        $resultado = $this->makeGeneration($contenido)->display_output;
+
+        // Sin línea en blanco entre el título y la tabla, GFM absorbe la tabla en el párrafo
+        $this->assertStringContainsString("Tabla 1. Compatibilidad técnica\n\n| Componente | Especificación |", $resultado);
+    }
+
+    public function test_linea_suelta_con_tab_no_se_convierte_en_tabla(): void
+    {
+        $contenido = "Párrafo normal.\n\nValor\tsuelto con un tab\n\nOtro párrafo.";
+
+        $resultado = $this->makeGeneration($contenido)->display_output;
+
+        $this->assertStringNotContainsString('| --- |', $resultado);
+        $this->assertStringContainsString("Valor\tsuelto con un tab", $resultado);
+    }
+
+    public function test_filas_con_distinto_numero_de_columnas_se_normalizan(): void
+    {
+        $contenido = "Col A\tCol B\tCol C\n"
+            . "uno\tdos\n"
+            . "tres\tcuatro\tcinco";
+
+        $resultado = $this->makeGeneration($contenido)->display_output;
+
+        $this->assertStringContainsString('| Col A | Col B | Col C |', $resultado);
+        $this->assertStringContainsString('| uno | dos |  |', $resultado);
+        $this->assertStringContainsString('| tres | cuatro | cinco |', $resultado);
+    }
+
+    public function test_pipes_dentro_de_celdas_se_escapan(): void
+    {
+        $contenido = "Col A\tCol B\n"
+            . "valor con | pipe\totro valor";
+
+        $resultado = $this->makeGeneration($contenido)->display_output;
+
+        $this->assertStringContainsString('valor con \\| pipe', $resultado);
+    }
+
+    public function test_contenido_sin_tabs_ni_imagenes_queda_identico(): void
+    {
+        $contenido = "## Sección\n\nPárrafo con texto normal.\n\n- Lista uno\n- Lista dos";
+
+        $this->assertSame($contenido, $this->makeGeneration($contenido)->display_output);
+    }
 }

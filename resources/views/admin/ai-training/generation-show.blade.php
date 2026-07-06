@@ -358,7 +358,23 @@
                 @endif
 
                 @if($generation->output_content)
-                    <div class="bg-green-50 dark:bg-green-900/10 rounded-hando p-4 max-h-96 overflow-y-auto border border-green-200 dark:border-green-800 prose prose-sm dark:prose-invert max-w-none">
+                    {{-- El plugin de tipografía de Tailwind no está instalado: estilos mínimos para el markdown renderizado --}}
+                    <style>
+                        .generated-output table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8rem; }
+                        .generated-output th, .generated-output td { border: 1px solid #a7d7b8; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+                        .generated-output th { background-color: rgba(34, 197, 94, 0.12); font-weight: 600; }
+                        .generated-output tr:nth-child(even) td { background-color: rgba(34, 197, 94, 0.05); }
+                        .dark .generated-output th, .dark .generated-output td { border-color: #14532d; }
+                        .generated-output p { margin: 0.5rem 0; }
+                        .generated-output ul, .generated-output ol { margin: 0.5rem 0; padding-left: 1.25rem; list-style: disc; }
+                        .generated-output ol { list-style: decimal; }
+                        .generated-output blockquote { border-left: 3px solid #22c55e; padding-left: 0.75rem; margin: 0.75rem 0; font-style: italic; }
+                        .generated-output h1, .generated-output h2, .generated-output h3 { font-weight: 700; margin: 1rem 0 0.5rem; }
+                        .generated-output h1 { font-size: 1.15rem; }
+                        .generated-output h2 { font-size: 1.05rem; }
+                        .generated-output h3 { font-size: 0.95rem; }
+                    </style>
+                    <div class="generated-output bg-green-50 dark:bg-green-900/10 rounded-hando p-4 max-h-96 overflow-y-auto border border-green-200 dark:border-green-800 text-sm text-hando-gray-700 dark:text-hando-gray-300">
                         {!! \Illuminate\Support\Str::markdown($generation->display_output) !!}
                     </div>
                 @else
