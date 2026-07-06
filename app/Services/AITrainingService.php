@@ -399,6 +399,35 @@ PROMPT;
      * Extraído como seam puro (sin llamar a OpenAI) para poder testear el
      * contrato textual, igual que buildReferenceExampleMessages().
      */
+    /**
+     * Mensaje de sistema de FORMATO DE SALIDA. Solo presentación (Markdown válido):
+     * no toca contenido, fidelidad ni vocabulario — esos contratos viven en el
+     * Prompt Maestro / system_prompt persistido. Sin esto, el modelo emite tablas
+     * con tabuladores o listas con rayas que el visor GFM aplana como párrafos,
+     * y referencias a imágenes que no puede producir. Se envía en ambos modos.
+     */
+    protected function buildOutputFormatMessage(): string
+    {
+        return <<<'TEXTO'
+FORMATO DE SALIDA (solo presentación; no altera ninguna regla de contenido):
+El documento se renderiza como Markdown (GitHub Flavored). Emití SIEMPRE Markdown válido:
+
+1. TABLAS: usá exclusivamente la sintaxis de tabla Markdown con pipes:
+| Columna A | Columna B |
+| --- | --- |
+| dato | dato |
+NUNCA construyas tablas con tabuladores, ni con listas de viñetas usando rayas (—) o guiones para simular columnas. Si la fuente presenta datos tabulares, la salida DEBE ser una tabla con pipes.
+
+2. TÍTULOS DE TABLA: la leyenda (ej. "Tabla 1. Descripción") va en su propia línea, separada de la tabla por una línea en blanco. Los encabezados de columna van DENTRO de la tabla, nunca en la leyenda.
+
+3. ENCABEZADOS DE SECCIÓN: usá ## para secciones y ### para subsecciones. Nunca dejes un título como línea suelta sin marcador.
+
+4. LISTAS: usá - para viñetas y 1. para numeradas. Las rayas (—) solo como puntuación dentro de una oración, jamás como separador de columnas.
+
+5. IMÁGENES: no podés producir imágenes reales. NUNCA emitas sintaxis de imagen (![...](...) ni <img>). Si la fuente contiene una figura, representá su información como tabla o texto descriptivo.
+TEXTO;
+    }
+
     protected function buildInternetRulesMessage(string $brief): string
     {
         $reglas = <<<'TEXTO'
@@ -587,6 +616,12 @@ TEXTO;
                 . "Si necesitás expresar la idea, reformulá usando sinónimos. Una sola aparición se considera una violación grave.";
         }
 
+        // Formato de salida: el modelo emite tablas en formatos que el visor no
+        // reconoce (tabuladores, listas con rayas). Se corrige en el ORIGEN con un
+        // mensaje de sistema de presentación, en AMBOS modos — no toca el Prompt
+        // Maestro ni el system_prompt persistido, se suma como las palabras prohibidas.
+        $outputFormatContent = $this->buildOutputFormatMessage();
+
         // En modo estricto, los few-shot ejemplos se excluyen: pesan más que las
         // instrucciones del prompt y arrastran a la IA hacia patrones aprendidos
         // (palabras prohibidas, secciones extra, justificaciones) que el cliente
@@ -606,7 +641,7 @@ TEXTO;
         // Sumamos los mensajes adicionales porque también ocupan contexto. Usamos el
         // prompt runtime real (no el system_prompt persistido) para que el presupuesto
         // de ejemplos refleje lo que efectivamente se envía en modo estándar.
-        $systemTokens = (int)((strlen($systemPromptContent) + strlen($globalForbiddenContent)) / 4);
+        $systemTokens = (int)((strlen($systemPromptContent) + strlen($globalForbiddenContent) + strlen($outputFormatContent)) / 4);
         $inputTokens = (int)(strlen($inputContent) / 4);
         $reserveForOutput = $maxOutputTokens;
 
@@ -626,6 +661,11 @@ TEXTO;
                 'content' => $globalForbiddenContent,
             ];
         }
+
+        $messages[] = [
+            'role' => 'system',
+            'content' => $outputFormatContent,
+        ];
 
         // Permiso de conocimiento del modelo (solo si el tipo lo tiene habilitado).
         // Override en RUNTIME (no requiere re-entrenar): relaja la fidelidad estricta

@@ -39,6 +39,40 @@ class AITrainingPromptTest extends TestCase
         return $method->invoke($service, $rt, $customPrompt);
     }
 
+    public function test_mensaje_de_formato_de_salida_exige_markdown_valido(): void
+    {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildOutputFormatMessage');
+
+        $mensaje = $method->invoke($service);
+
+        // Tablas: sintaxis pipe obligatoria, formatos inventados prohibidos
+        $this->assertStringContainsString('FORMATO DE SALIDA', $mensaje);
+        $this->assertStringContainsString('| Columna A | Columna B |', $mensaje);
+        $this->assertStringContainsString('| --- | --- |', $mensaje);
+        $this->assertStringContainsString('tabuladores', $mensaje);
+        $this->assertStringContainsString('rayas', $mensaje);
+
+        // Encabezados de sección con #
+        $this->assertStringContainsString('##', $mensaje);
+
+        // Imágenes: el modelo no puede producirlas
+        $this->assertStringContainsString('![', $mensaje);
+        $this->assertStringContainsString('imágenes', $mensaje);
+    }
+
+    public function test_mensaje_de_formato_no_toca_contenido_solo_presentacion(): void
+    {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildOutputFormatMessage');
+
+        $mensaje = $method->invoke($service);
+
+        $this->assertStringContainsString('presentación', $mensaje);
+        $this->assertStringNotContainsString('inventes', $mensaje);
+        $this->assertStringNotContainsString('conocimiento', $mensaje);
+    }
+
     public function test_standard_system_prompt_es_el_prompt_maestro(): void
     {
         $prompt = $this->buildStandard();
