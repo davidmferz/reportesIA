@@ -229,6 +229,127 @@ php artisan migrate:fresh --seed
 
 ---
 
+### 7. Sistema de Licenciamiento
+
+El acceso a la aplicación depende de una licencia firmada que emite un
+licensing-server externo (proyecto separado). El cliente la verifica
+**offline**: no hay una llamada de red en cada request, solo lectura del
+estado persistido localmente.
+
+**Piezas principales:**
+
+| Pieza | Ubicación |
+|-------|-----------|
+| Configuración | `config/license.php` |
+| Verificador criptográfico (JWS/EdDSA) | `app/Services/LicenseVerifier.php` |
+| Estado persistido (fila única) | `app/Models/LicenseState.php` → tabla `license_states` |
+| Enforcement por request | `app/Http/Middleware/EnsureLicenseIsValid.php` (alias `license`) |
+| Usuario desactivado | `app/Http/Middleware/EnsureUserIsActive.php` (alias `active`) |
+| Pantallas de activación / bloqueo | `app/Http/Controllers/LicenseController.php` + `resources/views/license/` |
+| Phone-home diario | `app/Console/Commands/LicenseCheckCommand.php` (`license:check`) |
+| Generador de token dev | `scripts/license/make-dev-token.php` |
+
+#### Variables de entorno (`config/license.php`)
+
+| Variable | Default | Qué hace |
+|----------|---------|----------|
+| `LICENSE_SERVER_URL` | — | Base URL del licensing-server. `license:check` llama `POST {server_url}/api/v1/licenses/{client_id}/validate`. |
+| `LICENSE_CLIENT_ID` | — | Identidad de este cliente frente al servidor. |
+| `LICENSE_PRODUCT_ID` | — | Identifica el producto; también se usa para derivar la URL de la JWKS si `LICENSE_JWKS_URL` está vacía. |
+| `LICENSE_REVALIDATION_HOURS` | `24` | Cada cuántas horas se espera que corra `license:check` (el scheduler real está fijado a `->daily()` en `bootstrap/app.php`). |
+| `LICENSE_GRACE_DAYS` | `14` | Días de gracia después de `valid_until` durante los que la app sigue funcionando (con banner de aviso) aunque no se pueda revalidar contra el servidor. |
+| `LICENSE_KID` / `LICENSE_PUBLIC_KEY` | — | Ranura 1 de clave pública pineada: `kid` + clave Ed25519 en base64url. |
+| `LICENSE_KID_2` / `LICENSE_PUBLIC_KEY_2` | — | Ranura 2 de clave pública pineada. |
+| `LICENSE_JWKS_URL` | derivada de `server_url` + `product_id` | Endpoint JWKS del servidor, para rotar claves sin redeploy del cliente. |
+| `LICENSE_JWKS_CACHE_HOURS` | `24` | Horas que se cachea la respuesta de la JWKS antes de volver a pedirla. |
+| `LICENSE_TRUST_NETWORK_JWKS` | `false` | Si es `true`, una clave traída por red (JWKS) puede pisar una clave pineada con el mismo `kid`. Por defecto una clave pineada localmente **siempre** gana, aunque la JWKS de red traiga otra para ese `kid`. |
+
+El verificador selecciona la clave pública a usar por el header `kid` del
+token (nunca por posición ni por "la última que llegó"), así que agregar o
+rotar ranuras es seguro mientras el `kid` no cambie de significado.
+
+#### Por qué hay DOS ranuras de clave pineada
+
+Con una sola ranura, activar la clave pública del licensing-server real
+pisaría de golpe la clave del helper de desarrollo (`make-dev-token.php`) —
+y viceversa. Cualquier licencia ya emitida con la clave que quedó afuera se
+invalidaría instantáneamente. Con dos ranuras (`LICENSE_KID`/`LICENSE_PUBLIC_KEY`
+y `LICENSE_KID_2`/`LICENSE_PUBLIC_KEY_2`) ambas claves conviven: el
+verificador elige cuál usar mirando el `kid` del token, no una posición fija.
+Esto permite tener activada al mismo tiempo una licencia real del servidor y
+una de prueba generada localmente, sin que una invalide a la otra.
+
+#### Enforcement por request (middleware `license`)
+
+`EnsureLicenseIsValid` NO hace red ni verificación criptográfica en cada
+request: solo lee la fila persistida (`LicenseState::current()`) y resuelve
+un estado local (`Valid` / `Grace` / `Blocked` / `Unlicensed`) comparando
+fechas contra el reloj del servidor. Según el resultado:
+
+- **Valid:** deja pasar.
+- **Grace** (venció `valid_until` pero todavía está dentro de `LICENSE_GRACE_DAYS`): deja pasar y comparte `licenseGraceUntil` con las vistas para mostrar el banner de aviso.
+- **Blocked / Unlicensed:** redirige. Si el usuario es admin, a `license.activation.show` (para que pueda reactivar); si no es admin, a `license.blocked.show` (pantalla read-only de "contactá a tu administrador" — nunca un 403).
+
+Las pantallas de licencia (`license.activation.show`, `license.blocked.show`)
+y las rutas de `routes/auth.php` (login, registro, recuperación de
+contraseña) quedan **fuera** del middleware `license` a propósito: si no
+fuera así, un admin bloqueado nunca podría loguearse ni llegar a la pantalla
+de activación para resolver el bloqueo.
+
+#### `license:check` y el phone-home diario
+
+`bootstrap/app.php` agenda `license:check` para correr una vez por día
+(`$schedule->command('license:check')->daily()`). Este comando sí hace red:
+llama al licensing-server, y según la respuesta renueva, revoca o deja sin
+cambios el estado local si el servidor no responde (fail-safe: un servidor
+caído no tira abajo la app, el estado persistido queda intacto y sigue
+gobernando el enforcement offline).
+
+**Importante — la revocación NO es inmediata.** El enforcement de cada
+request es offline por diseño (el licensing-server deliberadamente no es un
+punto único de falla: si se cae, la app no debe dejar de funcionar). Eso
+significa que si una licencia se revoca en el servidor, el cliente no se
+entera hasta la próxima corrida de `license:check` (como máximo, una vez por
+día). Esto es intencional, no un bug: hay que documentarlo y comunicarlo,
+no ocultarlo.
+
+#### Flujo de activación
+
+1. Un admin inicia sesión (`login` funciona incluso con la licencia
+   bloqueada, ver arriba).
+2. Si no hay licencia vigente, se lo redirige a `license.activation.show`
+   (`GET /license/activation`).
+3. Pega el token JWS que le dio el licensing-server (o el helper de dev) en
+   el formulario y lo envía (`POST /license/activation`).
+4. `LicenseController::store()` llama a `LicenseVerifier::activate()`: si el
+   token es inválido (firma, claims faltantes, dominio que no coincide,
+   etc.) no se persiste nada y se muestra el error. Si es válido, reemplaza
+   el estado de licencia y audita el alta en `activity_logs`.
+5. Un usuario no-admin nunca ve esta pantalla: si la licencia está
+   bloqueada, se lo manda a `license.blocked.show`, una pantalla read-only
+   que le pide contactar a su administrador.
+
+#### Generar un token de licencia sin el servidor corriendo
+
+Para probar el cliente offline, sin levantar el licensing-server:
+
+```bash
+php scripts/license/make-dev-token.php [domain] [days] [maxUsers] [clientId]
+```
+
+Sin argumentos usa el host de `APP_URL`, 365 días, 25 usuarios y
+`LICENSE_CLIENT_ID` (o `reportesia`). El script genera (o reutiliza) un
+keypair Ed25519 local en `storage/license-dev/` — la clave privada nunca se
+commitea — y firma un JWS de licencia igual al que emitiría el servidor real
+(mismos claims, mismo `alg=EdDSA`, header `kid`). Al final imprime:
+
+1. Las dos líneas para pegar en `.env` (`LICENSE_KID` / `LICENSE_PUBLIC_KEY`)
+   seguidas de `php artisan config:clear`.
+2. El token JWS para pegar en `/license/activation` una vez logueado como
+   admin.
+
+---
+
 ## Patrones y Buenas Prácticas Implementadas
 
 ### 1. **Repository Pattern (Listo para implementar)**
@@ -270,6 +391,9 @@ APP_URL=http://localhost
 DB_CONNECTION=sqlite
 # DB_DATABASE se genera automáticamente en database/database.sqlite
 ```
+
+Las variables `LICENSE_*` (servidor, claves pineadas, gracia, JWKS) se
+documentan en la sección **7. Sistema de Licenciamiento** más arriba.
 
 ### Instalación desde Cero
 
@@ -480,6 +604,6 @@ Para dudas sobre la implementación, revisar:
 
 ---
 
-**Última actualización:** 2025-12-11  
-**Versión del documento:** 1.0  
+**Última actualización:** 2026-07-13  
+**Versión del documento:** 1.1 (agrega sección 7, Sistema de Licenciamiento)  
 **Desarrollado con IA asistida**

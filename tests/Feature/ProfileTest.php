@@ -4,11 +4,19 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SeedsValidLicense;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsValidLicense;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seedValidLicense();
+    }
 
     public function test_profile_page_is_displayed(): void
     {

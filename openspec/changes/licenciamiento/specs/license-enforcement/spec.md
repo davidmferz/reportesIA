@@ -38,6 +38,20 @@ Outside grace, or when license status is `invalid`/`revoked`, the system MUST bl
 - WHEN a user requests `/dashboard`
 - THEN they are redirected to the activation screen
 
+### Requirement: Non-Admin Blocked Screen
+
+When blocking an authenticated **non-admin** user, the system MUST redirect them to a read-only "license blocked — contact your administrator" screen that does NOT require the `admin` role, instead of the admin-only activation screen (which would otherwise yield a 403). Admin users MUST still be routed to the activation screen so they can re-activate.
+
+#### Scenario: Non-admin blocked user sees contact screen, not 403
+- GIVEN the license is blocked (expired past grace, invalid, or revoked) and an authenticated user without the admin role requests a non-exempt route
+- WHEN the middleware blocks the request
+- THEN the user is shown the "contact your administrator" screen (HTTP 200), NOT redirected to the admin-only activation screen and NOT given a 403
+
+#### Scenario: Admin blocked user reaches activation screen
+- GIVEN the license is blocked and an authenticated admin requests a non-exempt route
+- WHEN the middleware blocks the request
+- THEN the admin is redirected to the activation screen where they can re-activate
+
 ### Requirement: Route Allowlist
 
 The middleware MUST exempt `routes/auth.php` routes (login, password reset), activation routes, and `/up` from blocking, regardless of license state.

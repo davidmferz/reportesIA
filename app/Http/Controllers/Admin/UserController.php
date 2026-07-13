@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\ActivityLog;
+use App\Models\LicenseState;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -30,6 +32,8 @@ class UserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'is_admin' => ['boolean'],
         ]);
+
+        $this->assertUserCapacityAvailable();
 
         $validated['password'] = Hash::make($validated['password']);
         $validated['is_admin'] = $request->has('is_admin');
@@ -93,5 +97,47 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Usuario eliminado exitosamente.');
+    }
+
+    /**
+     * Activa o desactiva un usuario. Desactivar SIEMPRE está permitido (solo
+     * libera cupo). Reactivar respeta el mismo tope de usuarios activos que
+     * la licencia impone en `store()`.
+     */
+    public function toggleActive(User $user)
+    {
+        if ($user->is_active) {
+            $user->update(['is_active' => false]);
+
+            return redirect()->route('admin.users.index')
+                ->with('success', 'Usuario desactivado exitosamente.');
+        }
+
+        $this->assertUserCapacityAvailable();
+
+        $user->update(['is_active' => true]);
+
+        return redirect()->route('admin.users.index')
+            ->with('success', 'Usuario reactivado exitosamente.');
+    }
+
+    /**
+     * Rechaza la operación si activar un usuario (crear o reactivar) superaría
+     * el tope de la licencia. Defensa en profundidad: el middleware `license`
+     * ya bloquea el grupo admin cuando no hay licencia, pero el controller no
+     * confía en eso y vuelve a decidir.
+     */
+    private function assertUserCapacityAvailable(): void
+    {
+        $maxUsers = LicenseState::current()?->max_users;
+
+        // Sin licencia no hay cupo que otorgar: se rechaza.
+        $hasCapacity = $maxUsers !== null && User::active()->count() < $maxUsers;
+
+        if (! $hasCapacity) {
+            throw ValidationException::withMessages([
+                'max_users' => 'Se alcanzó el límite de usuarios activos permitido por la licencia.',
+            ]);
+        }
     }
 }

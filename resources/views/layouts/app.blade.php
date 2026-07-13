@@ -16,6 +16,8 @@
     </head>
     <body class="font-sans antialiased" style="background-color: #E5E0D8;">
         <div class="min-h-screen" style="background-color: #E5E0D8;">
+            <x-license-banner />
+
             @include('layouts.navigation')
 
             <!-- Page Heading -->

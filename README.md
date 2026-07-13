@@ -62,6 +62,25 @@ php artisan serve
 - Email: `admin@reportesia.com`
 - Password: `password`
 
+## Licenciamiento
+
+La app requiere una licencia activa para funcionar (más allá de las
+pantallas de login y activación, que siempre quedan accesibles). Después de
+un `migrate:fresh --seed` en local no vas a tener ninguna, así que el admin
+va a caer directo en `/license/activation`.
+
+Para probar sin el licensing-server corriendo, generá un token de prueba:
+
+```bash
+php scripts/license/make-dev-token.php
+```
+
+El script te va a pedir pegar dos líneas en `.env` (`LICENSE_KID` y
+`LICENSE_PUBLIC_KEY`) y después el token en el formulario de activación,
+logueado como admin. Detalle completo de las variables `LICENSE_*`, el
+`license:check` diario y el flujo de activación en
+[AGENTE.MD](AGENTE.MD#7-sistema-de-licenciamiento).
+
 ## Estructura del Proyecto
 
 - **Autenticación:** Laravel Breeze con Blade + Alpine.js

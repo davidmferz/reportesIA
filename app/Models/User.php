@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Traits\LogsActivity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -23,6 +24,17 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'is_active',
+    ];
+
+    /**
+     * Valores por defecto en memoria (espejan los defaults de la migración),
+     * para que un modelo recién creado sea coherente sin releer de la base.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     /**
@@ -46,12 +58,18 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 
     public function isAdmin(): bool
     {
         return $this->is_admin;
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
     }
 
     public function activityLogs()

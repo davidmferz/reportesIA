@@ -16,6 +16,8 @@
     </head>
     <body class="font-sans antialiased">
         <div class="min-h-screen bg-hando-bg-light dark:bg-hando-bg-dark transition-colors duration-200">
+            <x-license-banner />
+
             <!-- Sidebar -->
             <x-crm.sidebar />
 

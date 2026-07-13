@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ForbiddenWordController;
 use App\Http\Controllers\Admin\ActivityLogController;
@@ -22,9 +23,9 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return view('crm.dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'active', 'license'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'license'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -35,9 +36,18 @@ Route::middleware('auth')->group(function () {
     })->name('crm.profile.settings');
 });
 
+// Licenciamiento — pantallas SIN el middleware `license` (evita loop de redirección).
+// Activación: solo admin. Bloqueo: cualquier usuario autenticado (read-only).
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('license/activation', [LicenseController::class, 'show'])->name('license.activation.show');
+    Route::post('license/activation', [LicenseController::class, 'store'])->name('license.activation.store');
+});
+Route::middleware('auth')->get('license/blocked', [LicenseController::class, 'blocked'])->name('license.blocked.show');
+
 // Rutas de administración
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'admin', 'active', 'license'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
+    Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
 
     // Registro de actividad (audit log) — trazabilidad de cambios de configuración
     Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
