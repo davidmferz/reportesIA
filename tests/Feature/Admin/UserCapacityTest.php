@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\AIGeneration;
+use App\Models\AITraining;
+use App\Models\Chapter;
+use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SeedsValidLicense;
@@ -110,5 +114,57 @@ class UserCapacityTest extends TestCase
             ->assertRedirect(route('license.activation.show'));
 
         $this->assertDatabaseMissing('users', ['email' => 'sinlicencia@test.com']);
+    }
+
+    public function test_desactivar_usuario_no_borra_sus_ai_generations_historicas(): void
+    {
+        // Spec user-capacity, "No Hard-Delete for Capacity": desactivar un
+        // usuario (is_active -> false) NUNCA debe borrar ni cascadear el
+        // borrado de su historial de ai_generations. El mecanismo real es un
+        // flag, no un DELETE de la fila users, así que la FK con
+        // onDelete('cascade') de ai_generations.user_id nunca debería
+        // dispararse en este flujo.
+        $this->seedValidLicense(['max_users' => 3]);
+        $admin = $this->admin(); // ocupa 1 de los 3 cupos
+        $usuario = User::factory()->create(['is_active' => true]);
+        $generation = $this->createAiGenerationFor($usuario);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.toggle-active', $usuario))
+            ->assertRedirect(route('admin.users.index'))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertFalse($usuario->fresh()->is_active);
+        $this->assertDatabaseHas('ai_generations', [
+            'id' => $generation->id,
+            'user_id' => $usuario->id,
+        ]);
+    }
+
+    private function createAiGenerationFor(User $user): AIGeneration
+    {
+        $reportType = ReportType::create(['nombre' => 'Reporte con historial']);
+        $chapter = Chapter::create([
+            'report_type_id' => $reportType->id,
+            'nombre' => 'Capítulo',
+            'orden' => 1,
+        ]);
+        $training = AITraining::create([
+            'report_type_id' => $reportType->id,
+            'status' => 'ready',
+            'system_prompt' => 'Prompt',
+            'examples_count' => 1,
+        ]);
+
+        return AIGeneration::create([
+            'ai_training_id' => $training->id,
+            'user_id' => $user->id,
+            'chapter_id' => $chapter->id,
+            'titulo' => 'Generación histórica',
+            'input_content' => 'input',
+            'output_content' => 'output',
+            'status' => 'completed',
+            'generated_at' => now(),
+        ]);
     }
 }
