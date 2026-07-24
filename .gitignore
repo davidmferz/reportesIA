@@ -30,5 +30,10 @@ docs/*.sql
 docs/presentacion/GUION-DEMO.md
 docs/comparacion-tipo4.md
 
+# Artefactos generados de demo y presentación: speeches privados, pptx, capturas del
+# sistema en vivo y renders. Son binarios pesados y material interno. NUNCA versionar:
+# una vez en el historial no se sacan más, y cada clon se los lleva.
+/outputs
+
 # SDD skill-registry cache (regenerable, not an SDD artifact)
 /.atl
