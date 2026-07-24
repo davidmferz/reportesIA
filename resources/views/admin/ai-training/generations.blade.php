@@ -88,6 +88,9 @@
                                             @if($generation->chapter && $generation->titulo)
                                                 <p class="text-xs text-hando-gray-500">{{ $generation->titulo }}</p>
                                             @endif
+                                            @if($generation->catalogPath())
+                                                <p class="text-xs text-hando-gray-500 whitespace-normal">{{ $generation->catalogPath() }}</p>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>

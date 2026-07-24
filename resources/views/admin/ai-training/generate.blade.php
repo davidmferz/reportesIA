@@ -159,6 +159,13 @@
                         @enderror
                     </div>
 
+                    <!-- Clasificación del proyecto -->
+                    <x-catalog-selector
+                        :tree="$catalogTree"
+                        :selected="$catalogSelection"
+                        description="Se precarga con la clasificación del tipo de reporte y podés ajustarla para esta generación. Hoy solo se guarda: no altera lo que produce la IA."
+                    />
+
                     <!-- Archivos de Entrada -->
                     <div class="space-y-2">
                         <label class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">

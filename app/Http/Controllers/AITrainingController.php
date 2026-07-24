@@ -6,6 +6,7 @@ use App\Models\AIGeneration;
 use App\Models\AITraining;
 use App\Models\ReportType;
 use App\Services\AITrainingService;
+use App\Services\CatalogService;
 use App\Services\DocumentExtractorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,11 +18,16 @@ class AITrainingController extends Controller
 {
     protected AITrainingService $trainingService;
     protected DocumentExtractorService $extractorService;
+    protected CatalogService $catalog;
 
-    public function __construct(AITrainingService $trainingService, DocumentExtractorService $extractorService)
-    {
+    public function __construct(
+        AITrainingService $trainingService,
+        DocumentExtractorService $extractorService,
+        CatalogService $catalog
+    ) {
         $this->trainingService = $trainingService;
         $this->extractorService = $extractorService;
+        $this->catalog = $catalog;
     }
 
     /**
@@ -116,7 +122,14 @@ class AITrainingController extends Controller
         // Cargar los capítulos del tipo de reporte ordenados
         $chapters = $reportType->chapters()->orderBy('orden')->get();
 
-        return view('admin.ai-training.generate', compact('reportType', 'training', 'chapters', 'openaiStatus'));
+        // La generación arranca con la clasificación del tipo de reporte, pero se puede
+        // cambiar: un mismo tipo puede generarse para clasificaciones distintas.
+        $catalogTree = $this->catalog->tree();
+        $catalogSelection = $this->catalog->selectionFrom($reportType->only(CatalogService::columns()));
+
+        return view('admin.ai-training.generate', compact(
+            'reportType', 'training', 'chapters', 'openaiStatus', 'catalogTree', 'catalogSelection'
+        ));
     }
 
     /**
@@ -124,17 +137,17 @@ class AITrainingController extends Controller
      */
     public function generate(Request $request, ReportType $reportType)
     {
-        $request->validate([
+        $validated = $request->validate([
             'chapter_id' => 'required|exists:chapters,id',
             'archivos' => 'required|array|min:1',
             'archivos.*' => 'required|file|max:51200',
-        ], [
+        ] + $this->catalog->validationRules($request->all()), [
             'chapter_id.required' => 'Debes seleccionar un capítulo.',
             'chapter_id.exists' => 'El capítulo seleccionado no existe.',
             'archivos.required' => 'Debes subir al menos un archivo de entrada.',
             'archivos.min' => 'Debes subir al menos un archivo de entrada.',
             'archivos.*.max' => 'Cada archivo no puede superar los 50MB.',
-        ]);
+        ] + $this->catalog->validationMessages());
 
         $training = AITraining::where('report_type_id', $reportType->id)
             ->where('status', 'ready')
@@ -163,7 +176,7 @@ class AITrainingController extends Controller
                 'titulo' => $chapter->nombre . ' - ' . now()->format('d/m/Y H:i'),
                 'input_content' => '',
                 'status' => 'processing',
-            ]);
+            ] + $this->catalog->selectionFrom($validated));
 
             // Procesar archivos de entrada
             $inputFiles = [];
@@ -246,6 +259,10 @@ class AITrainingController extends Controller
         $this->assertGenerationBelongsToReportType($reportType, $generation);
 
         $generation->load(['user', 'chapter']);
+        $generation->loadMissing([
+            'catalogSector', 'catalogBranch', 'catalogSubbranch',
+            'catalogSpecialty', 'catalogServiceType', 'catalogDocumentType',
+        ]);
         return view('admin.ai-training.generation-show', compact('reportType', 'generation'));
     }
 
@@ -257,7 +274,7 @@ class AITrainingController extends Controller
         $training = AITraining::where('report_type_id', $reportType->id)->first();
 
         $generations = $training
-            ? $training->generations()->with(['user', 'chapter'])->latest()->paginate(20)
+            ? $training->generations()->withCatalog()->with(['user', 'chapter'])->latest()->paginate(20)
             : collect();
 
         return view('admin.ai-training.generations', compact('reportType', 'training', 'generations'));

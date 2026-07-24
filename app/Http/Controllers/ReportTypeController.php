@@ -3,17 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\ReportType;
+use App\Services\CatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ReportTypeController extends Controller
 {
+    public function __construct(private readonly CatalogService $catalog)
+    {
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $reportTypes = ReportType::with('creator', 'updater', 'chapters')->latest()->get();
+        $reportTypes = ReportType::withCatalog()->with('creator', 'updater', 'chapters')->latest()->get();
         return view('admin.report-types.index', compact('reportTypes'));
     }
 
@@ -27,7 +32,9 @@ class ReportTypeController extends Controller
             abort(403, 'No tienes permiso para crear tipos de reportes.');
         }
 
-        return view('admin.report-types.create');
+        return view('admin.report-types.create', [
+            'catalogTree' => $this->catalog->tree(),
+        ]);
     }
 
     /**
@@ -42,16 +49,16 @@ class ReportTypeController extends Controller
 
         $validated = $request->validate([
             'nombre' => 'required|string|max:255|unique:report_types,nombre',
-        ], [
+        ] + $this->catalog->validationRules($request->all()), [
             'nombre.required' => 'El nombre es obligatorio.',
             'nombre.unique' => 'Este tipo de reporte ya existe.',
             'nombre.max' => 'El nombre no puede tener más de 255 caracteres.',
-        ]);
+        ] + $this->catalog->validationMessages());
 
         $reportType = ReportType::create([
             'nombre' => $validated['nombre'],
             'created_by' => Auth::id(),
-        ]);
+        ] + $this->catalog->selectionFrom($validated));
 
         return redirect()->route('admin.report-types.index')
             ->with('success', 'Tipo de reporte creado exitosamente.');
@@ -63,6 +70,10 @@ class ReportTypeController extends Controller
     public function show(ReportType $reportType)
     {
         $reportType->load('creator', 'updater', 'deleter');
+        $reportType->loadMissing([
+            'catalogSector', 'catalogBranch', 'catalogSubbranch',
+            'catalogSpecialty', 'catalogServiceType', 'catalogDocumentType',
+        ]);
         return view('admin.report-types.show', compact('reportType'));
     }
 
@@ -76,7 +87,10 @@ class ReportTypeController extends Controller
             abort(403, 'No tienes permiso para editar tipos de reportes.');
         }
 
-        return view('admin.report-types.edit', compact('reportType'));
+        return view('admin.report-types.edit', [
+            'reportType' => $reportType,
+            'catalogTree' => $this->catalog->tree(),
+        ]);
     }
 
     /**
@@ -91,16 +105,16 @@ class ReportTypeController extends Controller
 
         $validated = $request->validate([
             'nombre' => 'required|string|max:255|unique:report_types,nombre,' . $reportType->id,
-        ], [
+        ] + $this->catalog->validationRules($request->all()), [
             'nombre.required' => 'El nombre es obligatorio.',
             'nombre.unique' => 'Este tipo de reporte ya existe.',
             'nombre.max' => 'El nombre no puede tener más de 255 caracteres.',
-        ]);
+        ] + $this->catalog->validationMessages());
 
         $reportType->update([
             'nombre' => $validated['nombre'],
             'updated_by' => Auth::id(),
-        ]);
+        ] + $this->catalog->selectionFrom($validated));
 
         return redirect()->route('admin.report-types.index')
             ->with('success', 'Tipo de reporte actualizado exitosamente.');

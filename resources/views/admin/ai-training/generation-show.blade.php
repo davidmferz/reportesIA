@@ -98,6 +98,28 @@
                 </div>
             </div>
 
+            {{-- Clasificación elegida al generar. No influyó en la salida: es solo trazabilidad. --}}
+            @if($generation->catalogPath() || $generation->catalogServicePath())
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @if($generation->catalogPath())
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-4">
+                            <p class="text-xs font-medium text-hando-gray-500 uppercase">Clasificación del proyecto</p>
+                            <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark mt-1">
+                                {{ $generation->catalogPath() }}
+                            </p>
+                        </div>
+                    @endif
+                    @if($generation->catalogServicePath())
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-4">
+                            <p class="text-xs font-medium text-hando-gray-500 uppercase">Servicio y documento</p>
+                            <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark mt-1">
+                                {{ $generation->catalogServicePath() }}
+                            </p>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             @if($generation->hasError())
                 <div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-hando">
                     <p class="text-sm font-medium text-red-700 dark:text-red-300">Error:</p>
