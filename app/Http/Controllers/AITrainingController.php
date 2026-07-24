@@ -8,6 +8,7 @@ use App\Models\ReportType;
 use App\Services\AITrainingService;
 use App\Services\CatalogService;
 use App\Services\DocumentExtractorService;
+use App\Services\DomainMismatchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -19,15 +20,18 @@ class AITrainingController extends Controller
     protected AITrainingService $trainingService;
     protected DocumentExtractorService $extractorService;
     protected CatalogService $catalog;
+    protected DomainMismatchService $domainMismatch;
 
     public function __construct(
         AITrainingService $trainingService,
         DocumentExtractorService $extractorService,
-        CatalogService $catalog
+        CatalogService $catalog,
+        DomainMismatchService $domainMismatch
     ) {
         $this->trainingService = $trainingService;
         $this->extractorService = $extractorService;
         $this->catalog = $catalog;
+        $this->domainMismatch = $domainMismatch;
     }
 
     /**
@@ -127,10 +131,14 @@ class AITrainingController extends Controller
         $catalogTree = $this->catalog->tree();
         $catalogSelection = $this->catalog->selectionFrom($reportType->only(CatalogService::columns()));
         $configuracionSugerida = $reportType->catalogDocumentType?->configuracionSugerida() ?? [];
+        // Dominio declarado por el tipo de reporte: si al generar se elige otro, se avisa.
+        $dominioDeclarado = $reportType->only([
+            'catalog_sector_id', 'catalog_branch_id', 'catalog_subbranch_id', 'catalog_specialty_id',
+        ]);
 
         return view('admin.ai-training.generate', compact(
             'reportType', 'training', 'chapters', 'openaiStatus',
-            'catalogTree', 'catalogSelection', 'configuracionSugerida'
+            'catalogTree', 'catalogSelection', 'configuracionSugerida', 'dominioDeclarado'
         ));
     }
 
@@ -265,7 +273,15 @@ class AITrainingController extends Controller
             'catalogSector', 'catalogBranch', 'catalogSubbranch',
             'catalogSpecialty', 'catalogServiceType', 'catalogDocumentType',
         ]);
-        return view('admin.ai-training.generation-show', compact('reportType', 'generation'));
+
+        // Se recalcula al mostrar en vez de persistirlo: si el tipo de reporte se
+        // reclasifica, el aviso histórico debe reflejar la comparación vigente.
+        $niveles = ['catalog_sector_id', 'catalog_branch_id', 'catalog_subbranch_id', 'catalog_specialty_id'];
+        $avisoDominio = $this->domainMismatch->between(
+            $reportType->only($niveles),
+            $generation->only($niveles),
+        );
+        return view('admin.ai-training.generation-show', compact('reportType', 'generation', 'avisoDominio'));
     }
 
     /**

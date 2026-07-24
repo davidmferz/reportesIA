@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Evita que los bloques x-show aparezcan un instante antes de que Alpine inicialice. */
+[x-cloak] {
+    display: none !important;
+}

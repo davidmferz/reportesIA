@@ -184,6 +184,7 @@
                     <x-catalog-selector
                         :tree="$catalogTree"
                         :selected="$catalogSelection"
+                        :baseline="$dominioDeclarado"
                         description="Se precarga con la clasificación del tipo de reporte y podés ajustarla para esta generación. Hoy solo se guarda: no altera lo que produce la IA."
                     />
 
