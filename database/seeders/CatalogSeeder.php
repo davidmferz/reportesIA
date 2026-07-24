@@ -43,5 +43,38 @@ class CatalogSeeder extends Seeder
                 $serviceType->documentTypes()->firstOrCreate(['nombre' => $documentTypeName]);
             }
         }
+
+        $this->seedStructures();
+    }
+
+    /**
+     * Estructura y configuración sugeridas por combinación "servicio¦documento".
+     */
+    private function seedStructures(): void
+    {
+        $structures = require database_path('data/estructuras_proyecto.php');
+
+        foreach ($structures as $clave => $structure) {
+            [$serviceName, $documentTypeName] = explode('¦', $clave, 2);
+
+            $documentType = ServiceType::where('nombre', $serviceName)
+                ->first()
+                ?->documentTypes()
+                ->where('nombre', $documentTypeName)
+                ->first();
+
+            if (! $documentType) {
+                continue;
+            }
+
+            $documentType->update($structure['config']);
+
+            foreach ($structure['apartados'] as $apartado) {
+                $documentType->sections()->updateOrCreate(
+                    ['orden' => $apartado['orden']],
+                    ['apartado' => $apartado['apartado'], 'contenido' => $apartado['contenido']],
+                );
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Chapter;
 use App\Models\ReportType;
+use App\Services\ChapterStructureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -12,7 +13,32 @@ class ChapterController extends Controller
     public function index(ReportType $reportType)
     {
         $chapters = $reportType->chapters()->with('creator')->get();
-        return view('admin.chapters.index', compact('reportType', 'chapters'));
+
+        // Estructura sugerida por el catálogo, si el tipo de reporte está clasificado.
+        $reportType->loadMissing('catalogServiceType', 'catalogDocumentType.sections');
+        $estructuraSugerida = $reportType->catalogDocumentType?->sections ?? collect();
+
+        return view('admin.chapters.index', compact('reportType', 'chapters', 'estructuraSugerida'));
+    }
+
+    /**
+     * Crea los capítulos del tipo de reporte a partir de la estructura del catálogo.
+     */
+    public function applyStructure(Request $request, ReportType $reportType, ChapterStructureService $structures)
+    {
+        if (!Auth::user()->is_admin) {
+            abort(403, 'No tienes permiso para crear capítulos.');
+        }
+
+        try {
+            $creados = $structures->applyTo($reportType, $request->boolean('replace'));
+        } catch (\RuntimeException $e) {
+            return redirect()->route('admin.chapters.index', $reportType)
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.chapters.index', $reportType)
+            ->with('success', "Se cargaron {$creados} capítulos desde la estructura sugerida del catálogo.");
     }
 
     public function create(ReportType $reportType)

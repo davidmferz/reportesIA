@@ -58,6 +58,59 @@
         </div>
         @endif
 
+        @if(session('error'))
+        <div class="mb-6 rounded-hando bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 shadow-hando">
+            <div class="flex items-center p-4">
+                <svg class="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <p class="ml-3 text-sm font-medium text-red-900 dark:text-red-100">{{ session('error') }}</p>
+            </div>
+        </div>
+        @endif
+
+        {{-- Estructura sugerida del catálogo. Solo crea capítulos: no toca el prompt ni el entrenamiento. --}}
+        @if($estructuraSugerida->isNotEmpty())
+        <div x-data="{ abierto: false }" class="mb-6 rounded-hando border border-hando-border-light dark:border-hando-border-dark bg-white dark:bg-hando-card-dark p-4">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">
+                        Estructura sugerida del catálogo
+                    </p>
+                    <p class="mt-1 text-xs text-hando-gray-500 dark:text-hando-gray-400">
+                        {{ $reportType->catalogServicePath() }} — {{ $estructuraSugerida->count() }} apartados
+                    </p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="button" x-on:click="abierto = !abierto"
+                            class="text-xs text-hando-gray-500 dark:text-hando-gray-400 underline hover:no-underline">
+                        <span x-text="abierto ? 'Ocultar' : 'Ver apartados'">Ver apartados</span>
+                    </button>
+                    <form action="{{ route('admin.chapters.apply-structure', $reportType) }}" method="POST"
+                          @if($chapters->isNotEmpty())
+                          onsubmit="return confirm('Esto reemplazará los {{ $chapters->count() }} capítulos actuales por los {{ $estructuraSugerida->count() }} del catálogo. Los actuales quedan recuperables. ¿Continuar?');"
+                          @endif>
+                        @csrf
+                        @if($chapters->isNotEmpty())
+                            <input type="hidden" name="replace" value="1">
+                        @endif
+                        <x-hando-button variant="primary" type="submit">
+                            {{ $chapters->isNotEmpty() ? 'Reemplazar por la estructura sugerida' : 'Cargar estructura sugerida' }}
+                        </x-hando-button>
+                    </form>
+                </div>
+            </div>
+            <ol x-show="abierto" x-cloak class="mt-4 space-y-1 border-t border-hando-border-light dark:border-hando-border-dark pt-4">
+                @foreach($estructuraSugerida as $section)
+                    <li class="text-xs text-hando-gray-500 dark:text-hando-gray-400">
+                        <span class="font-medium text-hando-text-light dark:text-hando-text-dark">{{ $section->orden }}. {{ $section->apartado }}</span>
+                        — {{ $section->contenido }}
+                    </li>
+                @endforeach
+            </ol>
+        </div>
+        @endif
+
         <!-- Banner informativo del tipo de reporte -->
         <div class="mb-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-2xl border-4 border-blue-400 p-5">
             <div class="flex items-center space-x-4">

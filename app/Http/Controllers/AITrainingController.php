@@ -126,9 +126,11 @@ class AITrainingController extends Controller
         // cambiar: un mismo tipo puede generarse para clasificaciones distintas.
         $catalogTree = $this->catalog->tree();
         $catalogSelection = $this->catalog->selectionFrom($reportType->only(CatalogService::columns()));
+        $configuracionSugerida = $reportType->catalogDocumentType?->configuracionSugerida() ?? [];
 
         return view('admin.ai-training.generate', compact(
-            'reportType', 'training', 'chapters', 'openaiStatus', 'catalogTree', 'catalogSelection'
+            'reportType', 'training', 'chapters', 'openaiStatus',
+            'catalogTree', 'catalogSelection', 'configuracionSugerida'
         ));
     }
 
