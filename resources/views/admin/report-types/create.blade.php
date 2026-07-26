@@ -40,6 +40,9 @@
                     @enderror
                 </div>
 
+                <!-- Clasificación del proyecto -->
+                <x-catalog-selector :tree="$catalogTree" />
+
                 <!-- Botones de Acción -->
                 <div class="flex items-center justify-end gap-3 pt-6 border-t border-hando-border-light dark:border-hando-border-dark">
                     <a href="{{ route('admin.report-types.index') }}">

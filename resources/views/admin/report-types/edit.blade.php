@@ -41,6 +41,9 @@
                     @enderror
                 </div>
 
+                <!-- Clasificación del proyecto -->
+                <x-catalog-selector :tree="$catalogTree" :selected="$reportType" />
+
                 <!-- Información de Auditoría -->
                 <div class="pt-4 border-t border-hando-border-light dark:border-hando-border-dark">
                     <p class="text-xs font-semibold text-hando-gray-500 dark:text-hando-gray-400 uppercase tracking-wider mb-3">

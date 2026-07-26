@@ -98,6 +98,51 @@
                 </div>
             </div>
 
+            {{-- Aviso de dominio: se generó bajo una clasificación distinta a la declarada. --}}
+            @if($avisoDominio)
+                @php
+                    $avisoEstilo = match($avisoDominio['severidad']) {
+                        'alta' => 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20',
+                        'media' => 'border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/10',
+                        default => 'border-hando-border-light dark:border-hando-border-dark bg-hando-gray-50 dark:bg-hando-gray-800',
+                    };
+                @endphp
+                <div class="mt-4 rounded-hando border p-4 {{ $avisoEstilo }}">
+                    <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">
+                        Aviso de dominio (severidad {{ $avisoDominio['severidad'] }})
+                    </p>
+                    <p class="mt-1 text-xs text-hando-gray-600 dark:text-hando-gray-300">
+                        Se generó fuera del dominio declarado por el tipo de reporte.
+                        {{ $avisoDominio['etiqueta'] }} declarado:
+                        <strong>{{ $avisoDominio['declarado'] }}</strong> — usado al generar:
+                        <strong>{{ $avisoDominio['usado'] }}</strong>.
+                        Si la salida trae vocabulario o criterios que no corresponden, empezá por acá.
+                    </p>
+                </div>
+            @endif
+
+            {{-- Clasificación elegida al generar. No influyó en la salida: es solo trazabilidad. --}}
+            @if($generation->catalogPath() || $generation->catalogServicePath())
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @if($generation->catalogPath())
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-4">
+                            <p class="text-xs font-medium text-hando-gray-500 uppercase">Clasificación del proyecto</p>
+                            <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark mt-1">
+                                {{ $generation->catalogPath() }}
+                            </p>
+                        </div>
+                    @endif
+                    @if($generation->catalogServicePath())
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-4">
+                            <p class="text-xs font-medium text-hando-gray-500 uppercase">Servicio y documento</p>
+                            <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark mt-1">
+                                {{ $generation->catalogServicePath() }}
+                            </p>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             @if($generation->hasError())
                 <div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-hando">
                     <p class="text-sm font-medium text-red-700 dark:text-red-300">Error:</p>

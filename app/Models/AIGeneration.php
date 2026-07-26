@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasCatalogSelection;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AIGeneration extends Model
 {
+    use HasCatalogSelection;
     use LogsActivity;
 
     /**
@@ -28,6 +30,12 @@ class AIGeneration extends Model
         'ai_training_id',
         'user_id',
         'chapter_id',
+        'catalog_sector_id',
+        'catalog_branch_id',
+        'catalog_subbranch_id',
+        'catalog_specialty_id',
+        'catalog_service_type_id',
+        'catalog_document_type_id',
         'titulo',
         'input_content',
         'output_content',

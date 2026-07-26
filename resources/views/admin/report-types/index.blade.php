@@ -72,8 +72,13 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
                                 #{{ $reportType->id }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-hando-text-light dark:text-hando-text-dark">
-                                {{ $reportType->nombre }}
+                            <td class="px-6 py-4 text-sm text-hando-text-light dark:text-hando-text-dark">
+                                <span class="whitespace-nowrap">{{ $reportType->nombre }}</span>
+                                @if($reportType->catalogPath())
+                                    <span class="mt-1 block text-xs text-hando-gray-500 dark:text-hando-gray-400">
+                                        {{ $reportType->catalogPath() }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-sm text-hando-gray-500 dark:text-hando-gray-400">
                                 <div class="flex flex-wrap gap-1 items-center">

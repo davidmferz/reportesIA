@@ -24,6 +24,18 @@
                     <p class="text-sm font-medium text-hando-gray-500 dark:text-hando-gray-400 mb-2">Nombre</p>
                     <p class="font-semibold text-hando-text-light dark:text-hando-text-dark">{{ $reportType->nombre }}</p>
                 </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm font-medium text-hando-gray-500 dark:text-hando-gray-400 mb-2">Clasificación del proyecto</p>
+                    <p class="font-semibold text-hando-text-light dark:text-hando-text-dark">
+                        {{ $reportType->catalogPath() ?: 'Sin clasificar' }}
+                    </p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm font-medium text-hando-gray-500 dark:text-hando-gray-400 mb-2">Servicio y documento</p>
+                    <p class="font-semibold text-hando-text-light dark:text-hando-text-dark">
+                        {{ $reportType->catalogServicePath() ?: 'Sin clasificar' }}
+                    </p>
+                </div>
                 <div>
                     <p class="text-sm font-medium text-hando-gray-500 dark:text-hando-gray-400 mb-2">Creado por</p>
                     <p class="font-semibold text-hando-text-light dark:text-hando-text-dark">

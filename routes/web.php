@@ -50,6 +50,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Rutas para gestión de capítulos de tipos de reportes
     Route::get('report-types/{reportType}/chapters', [ChapterController::class, 'index'])->name('chapters.index');
+    Route::post('report-types/{reportType}/chapters/apply-structure', [ChapterController::class, 'applyStructure'])->name('chapters.apply-structure');
     Route::get('report-types/{reportType}/chapters/create', [ChapterController::class, 'create'])->name('chapters.create');
     Route::post('report-types/{reportType}/chapters', [ChapterController::class, 'store'])->name('chapters.store');
     Route::get('report-types/{reportType}/chapters/{chapter}/edit', [ChapterController::class, 'edit'])->name('chapters.edit');

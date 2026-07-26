@@ -159,6 +159,35 @@
                         @enderror
                     </div>
 
+                    {{-- Configuración sugerida por el catálogo para este tipo de documento.
+                         Es orientación para quien redacta: no altera lo que produce la IA. --}}
+                    @if(!empty($configuracionSugerida))
+                    <div class="rounded-hando border border-hando-border-light dark:border-hando-border-dark p-4">
+                        <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">
+                            Configuración sugerida del catálogo
+                        </p>
+                        <p class="mt-1 text-xs text-hando-gray-500 dark:text-hando-gray-400">
+                            {{ $reportType->catalogServicePath() }} — orientación del Excel del generador, no altera la salida de la IA.
+                        </p>
+                        <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            @foreach($configuracionSugerida as $etiqueta => $valor)
+                                <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-3">
+                                    <dt class="text-xs text-hando-gray-500 dark:text-hando-gray-400">{{ $etiqueta }}</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">{{ $valor }}</dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                    </div>
+                    @endif
+
+                    <!-- Clasificación del proyecto -->
+                    <x-catalog-selector
+                        :tree="$catalogTree"
+                        :selected="$catalogSelection"
+                        :baseline="$dominioDeclarado"
+                        description="Se precarga con la clasificación del tipo de reporte y podés ajustarla para esta generación. Hoy solo se guarda: no altera lo que produce la IA."
+                    />
+
                     <!-- Archivos de Entrada -->
                     <div class="space-y-2">
                         <label class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">

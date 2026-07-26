@@ -2,17 +2,25 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasCatalogSelection;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReportType extends Model
 {
+    use HasCatalogSelection;
     use SoftDeletes;
     use LogsActivity;
 
     protected $fillable = [
         'nombre',
+        'catalog_sector_id',
+        'catalog_branch_id',
+        'catalog_subbranch_id',
+        'catalog_specialty_id',
+        'catalog_service_type_id',
+        'catalog_document_type_id',
         'prompt',
         'model',
         'modo_estricto',
