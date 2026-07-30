@@ -13,7 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Selección del catálogo anidado de proyectos.
- * Hoy es solo clasificación: no interviene en generación ni entrenamiento.
+ *
+ * En el tipo de reporte es el dominio DECLARADO: precarga la pantalla de generación
+ * y sirve de baseline para el aviso de dominio. En una generación es el dominio USADO,
+ * y ese sí interviene: viaja al prompt como encuadre (CatalogContextService) y sus
+ * requisitos de formato se contrastan contra la salida (OutputValidatorService).
+ * En el entrenamiento sigue sin intervenir.
  */
 trait HasCatalogSelection
 {

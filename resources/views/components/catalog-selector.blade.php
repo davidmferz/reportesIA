@@ -2,7 +2,7 @@
     'tree' => null,
     'selected' => [],
     'heading' => 'Clasificación del proyecto',
-    'description' => 'Catálogo anidado: cada nivel filtra al siguiente. Es opcional y hoy solo se guarda como clasificación.',
+    'description' => 'Catálogo anidado: cada nivel filtra al siguiente. Es opcional. Acá declara el dominio del tipo de reporte: precarga la pantalla de generación y es la referencia del aviso de dominio.',
     // Dominio declarado contra el que avisar si la selección se aparta. Opcional:
     // sin baseline el componente no muestra ningún aviso.
     'baseline' => null,
@@ -79,6 +79,14 @@
                 nombre(this.subbranches, this.subbranch),
                 nombre(this.specialties, this.specialty),
             ].filter(Boolean).join(' > ');
+        },
+        /** Configuración que el Excel sugiere para el tipo de documento elegido. */
+        get configuracionSugerida() {
+            const doc = this.documentTypes.find(d => this.same(d.id, this.documentType));
+            return doc?.config ?? {};
+        },
+        get tieneConfiguracion() {
+            return Object.keys(this.configuracionSugerida).length > 0;
         },
         get servicePath() {
             const nombre = (list, id) => list.find(i => this.same(i.id, id))?.nombre;
@@ -295,6 +303,30 @@
             Este tipo de reporte se entrenó para otro dominio, así que la salida puede
             traer vocabulario o criterios que no corresponden. Podés continuar igual.
         </p>
+    </div>
+
+    {{-- Orientación metodológica del Excel para el entregable elegido. Reacciona al
+         tipo de documento seleccionado, no al del tipo de reporte. --}}
+    <div
+        x-show="tieneConfiguracion"
+        x-cloak
+        class="rounded-hando border border-hando-border-light dark:border-hando-border-dark p-4"
+    >
+        <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">
+            Orientación del catálogo para este entregable
+        </p>
+        <p class="mt-1 text-xs text-hando-gray-500 dark:text-hando-gray-400">
+            <span x-text="servicePath"></span> — metodología del Excel del generador.
+            Viaja al prompt como orientación; si contradice al caso de referencia, gana el caso de referencia.
+        </p>
+        <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <template x-for="[etiqueta, valor] in Object.entries(configuracionSugerida)" :key="etiqueta">
+                <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-3">
+                    <dt class="text-xs text-hando-gray-500 dark:text-hando-gray-400" x-text="etiqueta"></dt>
+                    <dd class="mt-1 text-sm font-semibold text-hando-text-light dark:text-hando-text-dark" x-text="valor"></dd>
+                </div>
+            </template>
+        </dl>
     </div>
 
     <p

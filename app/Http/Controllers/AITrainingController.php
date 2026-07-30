@@ -130,7 +130,6 @@ class AITrainingController extends Controller
         // cambiar: un mismo tipo puede generarse para clasificaciones distintas.
         $catalogTree = $this->catalog->tree();
         $catalogSelection = $this->catalog->selectionFrom($reportType->only(CatalogService::columns()));
-        $configuracionSugerida = $reportType->catalogDocumentType?->configuracionSugerida() ?? [];
         // Dominio declarado por el tipo de reporte: si al generar se elige otro, se avisa.
         $dominioDeclarado = $reportType->only([
             'catalog_sector_id', 'catalog_branch_id', 'catalog_subbranch_id', 'catalog_specialty_id',
@@ -138,7 +137,7 @@ class AITrainingController extends Controller
 
         return view('admin.ai-training.generate', compact(
             'reportType', 'training', 'chapters', 'openaiStatus',
-            'catalogTree', 'catalogSelection', 'configuracionSugerida', 'dominioDeclarado'
+            'catalogTree', 'catalogSelection', 'dominioDeclarado'
         ));
     }
 
@@ -212,9 +211,17 @@ class AITrainingController extends Controller
 
             $generation->update(['input_content' => $inputContent]);
 
-            // Generar salida con IA (modelo override por tipo de reporte si está configurado)
+            // Generar salida con IA (modelo override por tipo de reporte si está configurado).
+            // La clasificación que viaja al prompt es la ELEGIDA en esta pantalla, no la del
+            // tipo de reporte: el selector se precarga con la del tipo pero se puede ajustar,
+            // y ajustarla tiene que cambiar el encuadre que ve el modelo.
             $modeloOverride = $reportType->model ?: null;
-            $result = $this->trainingService->generateOutput($training, $inputFiles, $modeloOverride);
+            $result = $this->trainingService->generateOutput(
+                $training,
+                $inputFiles,
+                $modeloOverride,
+                $this->catalog->selectionFrom($validated)
+            );
 
             if ($result['success']) {
                 $validation = $result['validation'] ?? [];

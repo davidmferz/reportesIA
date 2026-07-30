@@ -43,6 +43,13 @@ class AITrainingService
     protected ?WebResearchService $webResearch;
 
     /**
+     * Traductor de la clasificación del catálogo a encuadre de prompt y expectativas
+     * de formato. Lazy por la misma razón que webResearch: no romper las
+     * instanciaciones manuales de dos argumentos que ya existen en los tests.
+     */
+    protected ?CatalogContextService $catalogContext = null;
+
+    /**
      * Máximo de reintentos del loop de auto-corrección.
      * Más de 2 da rendimientos decrecientes y consume tokens innecesarios.
      */
@@ -71,6 +78,11 @@ class AITrainingService
     protected function similarityJudge(): OutputSimilarityJudgeService
     {
         return $this->similarityJudge ??= app(OutputSimilarityJudgeService::class);
+    }
+
+    protected function catalogContext(): CatalogContextService
+    {
+        return $this->catalogContext ??= app(CatalogContextService::class);
     }
 
     /**
@@ -559,9 +571,9 @@ TEXTO;
      * 1) reglas explícitas del prompt/admin;
      * 2) similitud contra los archivos de salida del entrenamiento.
      */
-    protected function validateGeneratedOutput(string $generatedContent, ?string $customPrompt, iterable $similarityReferences): array
+    protected function validateGeneratedOutput(string $generatedContent, ?string $customPrompt, iterable $similarityReferences, array $expectations = []): array
     {
-        $promptValidation = $this->validator->validate($generatedContent, $customPrompt);
+        $promptValidation = $this->validator->validate($generatedContent, $customPrompt, $expectations);
         $similarityValidation = $this->similarityJudge()->judge($generatedContent, $similarityReferences);
 
         return $this->mergeValidationResults($promptValidation, $similarityValidation);
@@ -570,7 +582,7 @@ TEXTO;
     /**
      * Genera una salida basándose en el entrenamiento y nuevos archivos de entrada
      */
-    public function generateOutput(AITraining $training, array $inputFiles, ?string $model = null): array
+    public function generateOutput(AITraining $training, array $inputFiles, ?string $model = null, array $catalogSelection = []): array
     {
         if ($training->status !== 'ready') {
             throw new \Exception("El entrenamiento no está listo. Estado actual: {$training->status}");
@@ -637,11 +649,21 @@ TEXTO;
             ? $training->system_prompt
             : $this->buildStandardSystemPrompt($training->reportType, $customPromptForSystem);
 
+        // Permiso de conocimiento del modelo (opt-in por tipo de reporte). Se resuelve
+        // acá arriba porque el encuadre de clasificación cambia de rol según esté
+        // encendido o no: sin permiso PROHÍBE aportar el dominio, con permiso lo ANCLA.
+        $usaConocimientoModelo = (bool) ($training->reportType->usa_conocimiento_modelo ?? false);
+
+        // Encuadre de clasificación del proyecto. Mensaje de sistema PROPIO: el Prompt
+        // Maestro es verbatim y no se toca. Null cuando la generación no tiene
+        // clasificación, y ahí no se envía nada — cero cambio de comportamiento.
+        $catalogContextContent = $this->catalogContext()->promptMessage($catalogSelection, $usaConocimientoModelo);
+
         // Estimar tokens del sistema y entrada (aproximado: 4 chars = 1 token).
         // Sumamos los mensajes adicionales porque también ocupan contexto. Usamos el
         // prompt runtime real (no el system_prompt persistido) para que el presupuesto
         // de ejemplos refleje lo que efectivamente se envía en modo estándar.
-        $systemTokens = (int)((strlen($systemPromptContent) + strlen($globalForbiddenContent) + strlen($outputFormatContent)) / 4);
+        $systemTokens = (int)((strlen($systemPromptContent) + strlen($globalForbiddenContent) + strlen($outputFormatContent) + strlen((string) $catalogContextContent)) / 4);
         $inputTokens = (int)(strlen($inputContent) / 4);
         $reserveForOutput = $maxOutputTokens;
 
@@ -672,7 +694,6 @@ TEXTO;
         // para que el modelo APORTE conocimiento general del dominio. Default OFF: los
         // tipos existentes mantienen "solo datos del cliente". El permiso es acotado:
         // jamás autoriza inventar datos específicos del cliente.
-        $usaConocimientoModelo = (bool) ($training->reportType->usa_conocimiento_modelo ?? false);
         if ($usaConocimientoModelo) {
             $messages[] = [
                 'role' => 'system',
@@ -686,6 +707,16 @@ TEXTO;
                     . "mediciones) que no estén en la entrada: esos salen EXCLUSIVAMENTE del documento.\n"
                     . "2) Tu aporte es conocimiento GENERAL del campo, nunca hechos atribuidos al cliente.\n"
                     . "3) No contradigas ni reemplaces los datos de la entrada.",
+            ];
+        }
+
+        // Encuadre de clasificación. Va DESPUÉS del permiso a propósito: cuando el
+        // permiso está encendido, este mensaje lo ancla a un dominio concreto, y para
+        // eso el permiso ya tiene que estar dicho.
+        if ($catalogContextContent !== null) {
+            $messages[] = [
+                'role' => 'system',
+                'content' => $catalogContextContent,
             ];
         }
 
@@ -760,6 +791,9 @@ TEXTO;
         try {
             $customPrompt = $training->reportType->prompt ?? null;
             $similarityReferences = $this->referenceOutputsForSimilarity($training);
+            // Requisitos de formato que el catálogo declara para el entregable elegido.
+            // Generan avisos (warning), nunca bloquean ni disparan reintento.
+            $catalogExpectations = $this->catalogContext()->expectations($catalogSelection);
             $totalUsage = ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
             $generatedContent = '';
             $validationHistory = [];
@@ -812,7 +846,7 @@ TEXTO;
                     ];
                 }
 
-                $validation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
+                $validation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
                 $validationHistory[] = [
                     'attempt' => $attempt + 1,
                     'valid' => $validation['valid'],
@@ -846,7 +880,7 @@ TEXTO;
             if ($sanitized) {
                 Log::info("Saneo final aplicado: palabras prohibidas removidas a nivel código.");
                 $generatedContent = $sanitizedContent;
-                $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
+                $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
             }
 
             // Truncado determinístico final por límite de palabras. Los LLMs no cuentan
@@ -863,7 +897,7 @@ TEXTO;
                     Log::info("Truncado final aplicado: contenido cortado al límite de {$wordLimits['max']} palabras.");
                     $generatedContent = $truncatedContent;
                     $truncated = true;
-                    $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences);
+                    $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
                 }
             }
 

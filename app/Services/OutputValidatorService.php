@@ -16,6 +16,9 @@ class OutputValidatorService
     /**
      * Valida una salida generada contra el prompt del cliente.
      *
+     * @param  array<string, string>  $expectations  Requisitos de formato que el catálogo declara
+     *                                               para el entregable elegido (requiere_tablas,
+     *                                               requiere_formatos, requiere_diagrama).
      * @return array{
      *   valid: bool,
      *   violations: array<int, array{type: string, severity: string, detail: string, evidence?: string}>,
@@ -23,7 +26,7 @@ class OutputValidatorService
      *   feedback_for_ai: string|null
      * }
      */
-    public function validate(string $output, ?string $customPrompt): array
+    public function validate(string $output, ?string $customPrompt, array $expectations = []): array
     {
         $violations = [];
         // Combinamos las palabras prohibidas extraídas del prompt del cliente con la
@@ -96,6 +99,15 @@ class OutputValidatorService
             ];
         }
 
+        // 6. Requisitos de formato del catálogo para el entregable elegido.
+        //    SIEMPRE warning: un critical dispara reintento con feedback, y forzar una
+        //    tabla que el CASO DE REFERENCIA no tiene contradice al Prompt Maestro
+        //    ("No cambies la estructura", "No añadas apartados nuevos"). El Excel orienta,
+        //    el caso de referencia manda.
+        foreach ($this->detectMissingExpectations($output, $expectations) as $missing) {
+            $violations[] = $missing;
+        }
+
         $valid = empty(array_filter($violations, fn($v) => $v['severity'] === 'critical'));
 
         return [
@@ -108,6 +120,80 @@ class OutputValidatorService
             ],
             'feedback_for_ai' => $this->buildFeedbackForAI($violations, $limits, $wordCount),
         ];
+    }
+
+    /**
+     * Contrasta la salida contra lo que el catálogo declara obligatorio para el
+     * entregable. Solo actúa sobre "Sí": "No" y "Opcional" nunca generan aviso.
+     *
+     * La detección es determinística (regex sobre el texto), coherente con el resto
+     * del validador: no se le pregunta a la IA si cumplió.
+     *
+     * `indicadores_sugeridos` queda deliberadamente fuera: "2 a 4" no se puede contar
+     * sin interpretar el texto, y una heurística ahí generaría ruido. Esa señal viaja
+     * por el prompt (encuadre), no por la validación.
+     *
+     * @param  array<string, string>  $expectations
+     * @return array<int, array{type: string, severity: string, detail: string}>
+     */
+    private function detectMissingExpectations(string $output, array $expectations): array
+    {
+        $reglas = [
+            'requiere_tablas' => [
+                'type' => 'missing_expected_table',
+                'detail' => 'El catálogo indica que este entregable requiere tablas y la salida no incluye ninguna tabla Markdown.',
+                'presente' => fn (string $texto) => $this->hasMarkdownTable($texto),
+            ],
+            'requiere_diagrama' => [
+                'type' => 'missing_expected_diagram',
+                'detail' => 'El catálogo indica que este entregable requiere diagrama y la salida no menciona ninguno.',
+                // No podemos producir imágenes (lo prohíbe el mensaje de formato), así que
+                // lo verificable es que la salida represente el diagrama de algún modo.
+                'presente' => fn (string $texto) => (bool) preg_match(
+                    '/\b(diagramas?|esquemas?|flujogramas?|organigramas?|figuras?)\b/iu',
+                    $texto
+                ),
+            ],
+            'requiere_formatos' => [
+                'type' => 'missing_expected_format',
+                'detail' => 'El catálogo indica que este entregable requiere formatos y la salida no incluye ninguno.',
+                'presente' => fn (string $texto) => (bool) preg_match(
+                    '/\b(formatos?|formularios?|plantillas?|anexos?)\b/iu',
+                    $texto
+                ),
+            ],
+        ];
+
+        $violations = [];
+
+        foreach ($reglas as $columna => $regla) {
+            $exigido = $expectations[$columna] ?? null;
+
+            if ($exigido === null || mb_strtolower(trim($exigido), 'UTF-8') !== 'sí') {
+                continue;
+            }
+
+            if (($regla['presente'])($output)) {
+                continue;
+            }
+
+            $violations[] = [
+                'type' => $regla['type'],
+                'severity' => 'warning',
+                'detail' => $regla['detail'],
+            ];
+        }
+
+        return $violations;
+    }
+
+    /**
+     * Una tabla Markdown válida necesita fila de encabezado y fila separadora.
+     * Buscar solo pipes daría falsos positivos con cualquier "a | b" en prosa.
+     */
+    private function hasMarkdownTable(string $output): bool
+    {
+        return (bool) preg_match('/^[ \t]*\|.+\|[ \t]*\R[ \t]*\|[\s:|-]+\|[ \t]*$/mu', $output);
     }
 
     /**
