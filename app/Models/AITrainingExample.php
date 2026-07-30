@@ -12,6 +12,7 @@ class AITrainingExample extends Model
     protected $fillable = [
         'ai_training_id',
         'grupo_id',
+        'chapter_id',
         'capitulo',
         'input_content',
         'output_content',
@@ -30,6 +31,15 @@ class AITrainingExample extends Model
         'audit_findings' => 'array',
         'excluido_few_shot' => 'boolean',
     ];
+
+    /**
+     * Capítulo del ejemplo. Es lo que permite emparejarlo con el capítulo que se
+     * pide al generar; `capitulo` queda como etiqueta legible para el few-shot.
+     */
+    public function chapter(): BelongsTo
+    {
+        return $this->belongsTo(Chapter::class);
+    }
 
     /**
      * Relación con el entrenamiento

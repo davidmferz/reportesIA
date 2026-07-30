@@ -175,7 +175,12 @@ class AITrainingService
                         'grupo_id' => $grupoId,
                     ],
                     [
-                        'capitulo' => $archivosEntrada->first()->capitulo ?? 'Sin capítulo',
+                        // El capítulo viaja como FK (para emparejar con el que se pide al
+                        // generar) y como nombre legible (para etiquetar el few-shot).
+                        // Sin capítulo queda null: el centinela 'Sin capítulo' que había
+                        // antes es truthy y terminaba impreso dentro del prompt.
+                        'chapter_id' => $archivosEntrada->first()->chapter_id,
+                        'capitulo' => $archivosEntrada->first()->chapter?->nombre,
                         'input_content' => $inputContent,
                         'output_content' => $outputContent,
                         'input_files_count' => $archivosEntrada->count(),
@@ -582,7 +587,7 @@ TEXTO;
     /**
      * Genera una salida basándose en el entrenamiento y nuevos archivos de entrada
      */
-    public function generateOutput(AITraining $training, array $inputFiles, ?string $model = null, array $catalogSelection = []): array
+    public function generateOutput(AITraining $training, array $inputFiles, ?string $model = null, array $catalogSelection = [], ?int $chapterId = null): array
     {
         if ($training->status !== 'ready') {
             throw new \Exception("El entrenamiento no está listo. Estado actual: {$training->status}");
@@ -745,7 +750,7 @@ TEXTO;
         );
         $examples = $modoEstricto
             ? []
-            : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples);
+            : $this->selectBestExamples($training, $inputContent, $availableForExamples, $wordLimitsForExamples, $chapterId);
 
         // Few-shot: cada ejemplo se presenta como par ENTRADA→SALIDA (Fase 1 del
         // maestro), no solo la salida — así el modelo aprende qué se extrae, descarta
@@ -964,14 +969,33 @@ TEXTO;
      *
      * @param array{min: int|null, max: int|null} $wordLimits
      */
-    protected function selectBestExamples(AITraining $training, string $newInput, int $maxTokens, array $wordLimits = ['min' => null, 'max' => null]): array
+    protected function selectBestExamples(AITraining $training, string $newInput, int $maxTokens, array $wordLimits = ['min' => null, 'max' => null], ?int $chapterId = null): array
     {
         // Excluir ejemplos marcados como contaminados o explícitamente excluidos
         // por la auditoría (Fase 3): arrastran al modelo hacia patrones rechazados.
+        // El orden es EXPLÍCITO a propósito. Antes no había ninguno: la query
+        // confiaba en el orden que devolviera la base, así que cuando el presupuesto
+        // de tokens no alcanzaba para todos, cuáles entraban al few-shot era
+        // arbitrario y podía cambiar entre generaciones con la misma entrada.
+        // Más reciente primero, que es lo que el código ya decía querer.
         $examples = $training->examples()
             ->where('excluido_few_shot', false)
             ->where('audit_status', '!=', 'contaminated')
+            ->orderByDesc('id')
             ->get();
+
+        // Preferencia por capítulo: los ejemplos del capítulo que se está generando
+        // van primero, así son los que entran al presupuesto de tokens. NO es un
+        // filtro duro a propósito — si ninguno coincide y filtráramos, el modelo se
+        // quedaría sin caso de referencia, y sin él la Fase 1 del Prompt Maestro
+        // ("aprendé del ejemplo") pierde el piso y la salida empeora muchísimo.
+        // sortBy es estable en Laravel, así que dentro de cada grupo se respeta el
+        // orden original.
+        if ($chapterId !== null) {
+            $examples = $examples
+                ->sortBy(fn ($example) => (int) $example->chapter_id === (int) $chapterId ? 0 : 1)
+                ->values();
+        }
 
         // Caps por defecto subidos: con gpt-5-* tenemos 400K tokens de contexto.
         // El cap viejo (4000 chars) era residual de cuando el contexto era estrecho.
@@ -996,8 +1020,9 @@ TEXTO;
         $selectedExamples = [];
         $usedTokens = 0;
 
-        // Por ahora, seleccionar los más recientes que quepan
-        // En el futuro se podría implementar similitud semántica
+        // Se toman en el orden ya resuelto arriba (capítulo pedido primero, y dentro
+        // de cada grupo el más reciente) hasta agotar el presupuesto de tokens.
+        // En el futuro se podría implementar similitud semántica.
         foreach ($examples as $example) {
             $inputTruncated = $this->smartTruncate($example->input_content, $defaultInputCap);
             $outputTruncated = $this->smartTruncate($example->output_content, $defaultOutputCap);
