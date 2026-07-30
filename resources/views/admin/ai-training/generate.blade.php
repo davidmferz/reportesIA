@@ -159,33 +159,15 @@
                         @enderror
                     </div>
 
-                    {{-- Configuración sugerida por el catálogo para este tipo de documento.
-                         Es orientación para quien redacta: no altera lo que produce la IA. --}}
-                    @if(!empty($configuracionSugerida))
-                    <div class="rounded-hando border border-hando-border-light dark:border-hando-border-dark p-4">
-                        <p class="text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">
-                            Configuración sugerida del catálogo
-                        </p>
-                        <p class="mt-1 text-xs text-hando-gray-500 dark:text-hando-gray-400">
-                            {{ $reportType->catalogServicePath() }} — orientación del Excel del generador, no altera la salida de la IA.
-                        </p>
-                        <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            @foreach($configuracionSugerida as $etiqueta => $valor)
-                                <div class="bg-hando-gray-50 dark:bg-hando-gray-800 rounded-hando p-3">
-                                    <dt class="text-xs text-hando-gray-500 dark:text-hando-gray-400">{{ $etiqueta }}</dt>
-                                    <dd class="mt-1 text-sm font-semibold text-hando-text-light dark:text-hando-text-dark">{{ $valor }}</dd>
-                                </div>
-                            @endforeach
-                        </dl>
-                    </div>
-                    @endif
-
-                    <!-- Clasificación del proyecto -->
+                    {{-- Clasificación del proyecto. Ya no es metadata: viaja al prompt como
+                         encuadre (terminología y desambiguación) y sus requisitos de formato
+                         se contrastan contra la salida. La orientación del catálogo se
+                         muestra adentro del componente, según el documento elegido acá. --}}
                     <x-catalog-selector
                         :tree="$catalogTree"
                         :selected="$catalogSelection"
                         :baseline="$dominioDeclarado"
-                        description="Se precarga con la clasificación del tipo de reporte y podés ajustarla para esta generación"
+                        description="Se precarga con la clasificación del tipo de reporte y podés ajustarla para esta generación. Encuadra el vocabulario del documento; no autoriza aportar datos que no estén en la entrada."
                     />
 
                     <!-- Archivos de Entrada -->

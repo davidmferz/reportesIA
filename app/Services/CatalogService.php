@@ -88,6 +88,10 @@ class CatalogService
                 ])->values()->all(),
             ])->values()->all();
 
+        // La configuración sugerida viaja con cada tipo de documento: la pantalla la
+        // muestra según lo que el usuario elige, sin round-trip. Renderizarla desde el
+        // servidor la dejaba pegada al tipo de reporte y desactualizada apenas se
+        // ajustaba la clasificación para una generación puntual.
         $serviceTypes = ServiceType::with('documentTypes')
             ->orderBy('nombre')
             ->get()
@@ -97,6 +101,7 @@ class CatalogService
                 'document_types' => $serviceType->documentTypes->map(fn ($documentType) => [
                     'id' => $documentType->id,
                     'nombre' => $documentType->nombre,
+                    'config' => $documentType->configuracionSugerida(),
                 ])->values()->all(),
             ])->values()->all();
 

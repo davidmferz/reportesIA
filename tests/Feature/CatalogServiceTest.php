@@ -59,6 +59,25 @@ class CatalogServiceTest extends TestCase
         $this->assertContains('Informe', collect($estadistico['document_types'])->pluck('nombre')->all());
     }
 
+    /**
+     * La configuración sugerida viaja EN el árbol para que la pantalla la muestre
+     * según el tipo de documento elegido, sin round-trip. Antes se renderizaba desde
+     * el servidor con la del tipo de reporte, que queda vieja apenas ajustás la
+     * clasificación para esta generación.
+     */
+    public function test_tree_carries_the_suggested_configuration_of_each_document_type(): void
+    {
+        $tree = $this->catalog->tree();
+
+        $calidad = collect($tree['service_types'])
+            ->firstWhere('nombre', 'Calidad de productos y servicios');
+        $verificacion = collect($calidad['document_types'])->firstWhere('nombre', 'Verificación');
+
+        $this->assertSame('2 a 4', $verificacion['config']['Indicadores sugeridos']);
+        $this->assertSame('Sí', $verificacion['config']['¿Requiere tablas?']);
+        $this->assertSame('Documento de verificación', $verificacion['config']['Clasificación del documento']);
+    }
+
     public function test_columns_lists_the_six_persisted_selection_fields(): void
     {
         $this->assertSame([
