@@ -135,7 +135,8 @@
                             <div class="flex items-center justify-between">
                                 <div>
                                     <h3 class="text-lg font-bold text-hando-text-light dark:text-hando-text-dark">
-                                        {{ $firstFile->capitulo ?? 'Grupo de Archivos' }}
+                                        {{-- `capitulo` es la columna legacy que nunca se llenó; el dato vivo es la relación. --}}
+                                        {{ $firstFile->chapter?->nombre ?? $firstFile->capitulo ?? 'Grupo de Archivos' }}
                                     </h3>
                                     <p class="text-sm text-hando-gray-500 dark:text-hando-gray-400 mt-1">
                                         Subido por {{ $firstFile->creator->name ?? 'N/A' }} el {{ $firstFile->created_at->format('d/m/Y H:i') }}

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ReportTypeFileController extends Controller
 {
@@ -163,7 +164,9 @@ class ReportTypeFileController extends Controller
 
     public function create(ReportType $reportType)
     {
-        return view('admin.report-files.create', compact('reportType'));
+        $chapters = $reportType->chapters()->orderBy('orden')->get();
+
+        return view('admin.report-files.create', compact('reportType', 'chapters'));
     }
 
     public function store(Request $request, ReportType $reportType)
@@ -172,6 +175,13 @@ class ReportTypeFileController extends Controller
             'archivos_entrada' => 'required|array|min:1',
             'archivos_entrada.*' => 'required|file|max:51200',
             'archivo_salida' => 'required|file|max:51200',
+            // El capítulo tiene que ser de ESTE tipo de reporte. Igual que en el
+            // catálogo, `Rule::exists()->where()` rechaza el hijo ajeno sin lógica extra.
+            'chapter_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('chapters', 'id')->where('report_type_id', $reportType->id),
+            ],
         ], [
             'archivos_entrada.required' => 'Debes seleccionar al menos un archivo de entrada.',
             'archivos_entrada.min' => 'Debes seleccionar al menos un archivo de entrada.',
@@ -181,9 +191,12 @@ class ReportTypeFileController extends Controller
             'archivo_salida.required' => 'Debes seleccionar un archivo de salida.',
             'archivo_salida.file' => 'El archivo de salida debe ser válido.',
             'archivo_salida.max' => 'El archivo de salida no puede superar los 50MB.',
+            'chapter_id.exists' => 'El capítulo seleccionado no pertenece a este tipo de reporte.',
         ]);
 
         $grupoId = (string) Str::uuid();
+        // Todo el grupo (entradas + salida) comparte capítulo: es UN ejemplo.
+        $chapterId = $validated['chapter_id'] ?? null;
         $archivosSubidos = 0;
 
         // Process input files
@@ -193,7 +206,7 @@ class ReportTypeFileController extends Controller
                     $archivo,
                     $reportType,
                     $grupoId,
-                    null,
+                    $chapterId,
                     'entrada'
                 );
                 $archivosSubidos++;
@@ -206,7 +219,7 @@ class ReportTypeFileController extends Controller
                 $request->file('archivo_salida'),
                 $reportType,
                 $grupoId,
-                null,
+                $chapterId,
                 'salida'
             );
             $archivosSubidos++;
@@ -218,7 +231,7 @@ class ReportTypeFileController extends Controller
             ->with('success', $mensaje);
     }
 
-    private function storeFile($archivo, $reportType, $grupoId, $capitulo, $tipoArchivo)
+    private function storeFile($archivo, $reportType, $grupoId, $chapterId, $tipoArchivo)
     {
         $nombreOriginal = $archivo->getClientOriginalName();
         $extension = $archivo->getClientOriginalExtension();
@@ -233,7 +246,7 @@ class ReportTypeFileController extends Controller
 
         ReportTypeFile::create([
             'report_type_id' => $reportType->id,
-            'capitulo' => $capitulo,
+            'chapter_id' => $chapterId,
             'tipo_archivo' => $tipoArchivo,
             'grupo_id' => $grupoId,
             'nombre_original' => $nombreOriginal,

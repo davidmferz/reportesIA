@@ -220,7 +220,10 @@ class AITrainingController extends Controller
                 $training,
                 $inputFiles,
                 $modeloOverride,
-                $this->catalog->selectionFrom($validated)
+                $this->catalog->selectionFrom($validated),
+                // El capítulo pedido prioriza los ejemplos de ESE capítulo en el
+                // few-shot, en vez de mezclar la estructura de todos.
+                $chapter->id
             );
 
             if ($result['success']) {

@@ -208,7 +208,7 @@
                         <div class="flex items-center justify-between mb-3">
                             <div>
                                 <h3 class="font-semibold text-hando-text-light dark:text-hando-text-dark">
-                                    {{ $firstFile->capitulo ?? 'Sin nombre' }}
+                                    {{ $firstFile->chapter?->nombre ?? $firstFile->capitulo ?? 'Sin nombre' }}
                                 </h3>
                                 <p class="text-xs text-hando-gray-500">
                                     {{ $archivosEntrada->count() }} archivos de entrada | {{ $archivoSalida ? '1 archivo de salida' : 'Sin salida' }}

@@ -84,6 +84,40 @@
                         </div>
                     </div>
 
+                    {{-- Capítulo del ejemplo. Es lo que permite que, al generar un capítulo,
+                         el few-shot priorice los casos de referencia de ESE capítulo y no
+                         mezcle la estructura de los otros. --}}
+                    <div class="space-y-2">
+                        <label for="chapter_id" class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
+                            Capítulo del ejemplo
+                        </label>
+                        <p class="text-xs text-hando-gray-500 dark:text-hando-gray-400 mb-2">
+                            @if($chapters->isNotEmpty())
+                                Agrupa este ejemplo con el capítulo que genera. Al generar ese capítulo, la IA prioriza estos archivos como caso de referencia. Es opcional, pero sin él el ejemplo sirve para cualquier capítulo por igual.
+                            @else
+                                Este tipo de reporte todavía no tiene capítulos.
+                                <a href="{{ route('admin.chapters.index', $reportType) }}" class="underline hover:no-underline">Crear capítulos</a>
+                            @endif
+                        </p>
+                        @if($chapters->isNotEmpty())
+                            <select
+                                name="chapter_id"
+                                id="chapter_id"
+                                class="block w-full rounded-hando border-hando-border-light dark:border-hando-border-dark bg-white dark:bg-hando-card-dark text-hando-text-light dark:text-hando-text-dark focus:border-hando-primary focus:ring-hando-primary sm:text-sm"
+                            >
+                                <option value="">-- Sin capítulo --</option>
+                                @foreach($chapters as $chapter)
+                                    <option value="{{ $chapter->id }}" @selected(old('chapter_id') == $chapter->id)>
+                                        {{ $chapter->orden }}. {{ $chapter->nombre }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
+                        @error('chapter_id')
+                            <p class="mt-1 text-sm text-hando-danger">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <!-- Archivos de Entrada Upload Area -->
                     <div class="space-y-2">
                         <label class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">

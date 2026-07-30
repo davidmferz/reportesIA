@@ -16,6 +16,7 @@ class ReportTypeFile extends Model
 
     protected $fillable = [
         'report_type_id',
+        'chapter_id',
         'capitulo',
         'tipo_archivo',
         'grupo_id',
@@ -36,6 +37,15 @@ class ReportTypeFile extends Model
     public function reportType()
     {
         return $this->belongsTo(ReportType::class);
+    }
+
+    /**
+     * Capítulo al que pertenece el ejemplo. Nullable: los archivos subidos antes
+     * de que la pantalla preguntara el capítulo quedan sin clasificar.
+     */
+    public function chapter()
+    {
+        return $this->belongsTo(Chapter::class);
     }
 
     public function creator()
