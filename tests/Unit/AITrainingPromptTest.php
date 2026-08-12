@@ -143,6 +143,148 @@ class AITrainingPromptTest extends TestCase
         $this->assertStringContainsString('Fase 1', $assistantMessage['content']);
     }
 
+    private function buildUserMessage(
+        bool $modoEstricto = false,
+        bool $usaConocimientoModelo = false,
+        bool $tieneEjemplos = true
+    ): string {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildGenerationUserMessage');
+
+        return $method->invoke(
+            $service,
+            '### Archivo: entrada.docx',
+            $modoEstricto,
+            $usaConocimientoModelo,
+            $tieneEjemplos
+        );
+    }
+
+    /**
+     * El informe de prueba del cliente (docs/Informe de Prueba de IA 2) documenta que
+     * su prompt correctivo "sí fue leído pero perdió". La causa verificada: el mensaje
+     * user final REPETÍA la Fase 2 del maestro ("misma estructura, mismos títulos,
+     * mismo orden"), ocupando el slot de recencia con la orden que el prompt del
+     * cliente contradice. La regla ya vive completa en el system: repetirla acá solo
+     * le daba a la contradicción la última palabra.
+     */
+    public function test_mensaje_de_generacion_no_repite_la_orden_de_clonar_estructura(): void
+    {
+        $mensaje = $this->buildUserMessage();
+
+        $this->assertStringNotContainsString('la misma estructura', $mensaje);
+        $this->assertStringNotContainsString('los mismos títulos', $mensaje);
+        $this->assertStringNotContainsString('el mismo orden', $mensaje);
+        $this->assertStringNotContainsString('el mismo formato de numeración', $mensaje);
+        $this->assertStringNotContainsString('CASO DE REFERENCIA', $mensaje);
+    }
+
+    /**
+     * El desempate estrecho ("si contradicen el FORMATO del caso de referencia") no
+     * cubría el conflicto real, que es de estructura y de reglas de contenido. Se
+     * elimina de acá: la autoridad se declara una sola vez, en el system, junto a las
+     * instrucciones del usuario.
+     */
+    public function test_mensaje_de_generacion_delega_en_el_system_prompt(): void
+    {
+        $mensaje = $this->buildUserMessage();
+
+        $this->assertStringContainsString('system prompt', $mensaje);
+        $this->assertStringNotContainsString('contradicen el formato', $mensaje);
+        $this->assertStringContainsString('### Archivo: entrada.docx', $mensaje);
+    }
+
+    /**
+     * clausulaFuente es territorio de la regla "Nunca inventes datos" y del toggle
+     * usa_conocimiento_modelo: NO se toca en este paso. Solo se blinda que siga
+     * conmutando igual.
+     */
+    public function test_mensaje_de_generacion_conserva_la_clausula_de_fuente(): void
+    {
+        $sinPermiso = $this->buildUserMessage(usaConocimientoModelo: false);
+        $conPermiso = $this->buildUserMessage(usaConocimientoModelo: true);
+
+        $this->assertStringContainsString('EXCLUSIVAMENTE', $sinPermiso);
+        $this->assertStringContainsString('conocimiento experto del dominio', $conPermiso);
+        $this->assertStringNotContainsString('EXCLUSIVAMENTE', $conPermiso);
+    }
+
+    public function test_mensaje_de_generacion_modo_estricto_intacto(): void
+    {
+        $mensaje = $this->buildUserMessage(modoEstricto: true);
+
+        $this->assertStringContainsString('ENTRADA A PROCESAR', $mensaje);
+        $this->assertStringContainsString('INSTRUCCIONES OBLIGATORIAS', $mensaje);
+        $this->assertStringContainsString('No incorpores conocimiento externo', $mensaje);
+    }
+
+    public function test_mensaje_de_generacion_sin_ejemplos_intacto(): void
+    {
+        $mensaje = $this->buildUserMessage(tieneEjemplos: false);
+
+        $this->assertStringContainsString('ENTRADA A PROCESAR', $mensaje);
+        $this->assertStringContainsString('instrucciones del system prompt', $mensaje);
+    }
+
+    /**
+     * La cláusula de autoridad decía solo "si alguna regla posterior del maestro las
+     * contradice". El conflicto que el cliente documentó no viene de una regla: viene
+     * del CASO DE REFERENCIA arrastrando estructura, títulos y apartados. La autoridad
+     * tiene que nombrarlo explícitamente o no cubre el caso.
+     */
+    public function test_autoridad_del_usuario_cubre_el_caso_de_referencia(): void
+    {
+        $prompt = $this->buildStandard('Definí la estructura según la entrada actual.');
+
+        // Normalizamos espacios: el prompt va en heredoc y el wrapping parte frases.
+        // El contrato es el texto, no dónde cae el salto de línea.
+        $plano = preg_replace('/\s+/', ' ', $prompt);
+
+        $this->assertStringContainsString('PRIORIDAD MÁXIMA', $plano);
+        $this->assertStringContainsString('GANAN estas instrucciones', $plano);
+        // La autoridad nombra explícitamente lo que arrastra el ejemplo.
+        $this->assertStringContainsString(
+            'los apartados o el formato del CASO DE REFERENCIA',
+            $plano
+        );
+        // El alcance viejo, limitado a "reglas posteriores del maestro", no alcanzaba.
+        $this->assertStringNotContainsString('Si alguna regla posterior del maestro', $plano);
+    }
+
+    public function test_autoridad_del_usuario_ausente_sin_prompt_del_cliente(): void
+    {
+        $prompt = $this->buildStandard();
+
+        $this->assertStringNotContainsString('PRIORIDAD MÁXIMA', $prompt);
+        $this->assertStringNotContainsString('GANAN estas instrucciones', $prompt);
+    }
+
+    /**
+     * El turno assistant del few-shot es andamiaje NUESTRO, no texto del cliente, y
+     * es la señal de dirección más fuerte del stack: le pone al modelo en la boca su
+     * propio compromiso. Decía "aprendí qué estructura, títulos [...] y lo aplicaré",
+     * contradiciendo la Fase 1 del propio maestro ("No debes copiar literalmente el
+     * contenido. Debes aprender el patrón de transformación"). Se limita a acusar
+     * recibo del aprendizaje: quién gobierna la Fase 2 es el system, no este turno.
+     */
+    public function test_turno_assistant_no_se_compromete_a_clonar_estructura(): void
+    {
+        $service = $this->service();
+        $method = new ReflectionMethod($service, 'buildReferenceExampleMessages');
+
+        $messages = $method->invoke($service, [
+            ['capitulo' => 'Riego', 'input' => 'Entrada.', 'output' => 'Salida.'],
+        ]);
+
+        $assistant = $messages[1]['content'];
+
+        $this->assertStringContainsString('Fase 1', $assistant);
+        $this->assertStringContainsString('patrón de transformación', $assistant);
+        $this->assertStringContainsString('No copiaré literalmente', $assistant);
+        $this->assertStringNotContainsString('títulos', $assistant);
+        $this->assertStringNotContainsString('Lo aplicaré', $assistant);
+    }
+
     public function test_no_existe_referenceModelPolicyPrompt(): void
     {
         $service = $this->service();
