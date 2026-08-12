@@ -227,11 +227,7 @@
                                     <div class="flex items-center">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-100">System</span>
                                         <span class="ml-2 text-sm font-semibold text-purple-900 dark:text-purple-200">
-                                            @if($sysIdx === 0)
-                                                Instrucciones del entrenamiento
-                                            @else
-                                                Palabras prohibidas globales
-                                            @endif
+                                            {{ \App\Services\PromptMessageLabelService::label($sysMsg['content'] ?? '', $sysIdx) }}
                                         </span>
                                     </div>
                                     <span class="text-[10px] text-purple-600 dark:text-purple-400">
