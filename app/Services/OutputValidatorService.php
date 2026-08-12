@@ -19,6 +19,10 @@ class OutputValidatorService
      * @param  array<string, string>  $expectations  Requisitos de formato que el catálogo declara
      *                                               para el entregable elegido (requiere_tablas,
      *                                               requiere_formatos, requiere_diagrama).
+     * @param  bool  $aportaConocimiento  Si el tipo de reporte tiene encendido "Aportar
+     *                                    conocimiento del modelo". Con el permiso apagado la
+     *                                    salida debería venir solo de la entrada y no hay nada
+     *                                    que declarar.
      * @return array{
      *   valid: bool,
      *   violations: array<int, array{type: string, severity: string, detail: string, evidence?: string}>,
@@ -26,8 +30,12 @@ class OutputValidatorService
      *   feedback_for_ai: string|null
      * }
      */
-    public function validate(string $output, ?string $customPrompt, array $expectations = []): array
-    {
+    public function validate(
+        string $output,
+        ?string $customPrompt,
+        array $expectations = [],
+        bool $aportaConocimiento = false
+    ): array {
         $violations = [];
         // Combinamos las palabras prohibidas extraídas del prompt del cliente con la
         // lista global del módulo admin. Las globales aplican siempre, sin importar
@@ -108,6 +116,24 @@ class OutputValidatorService
             $violations[] = $missing;
         }
 
+        // 7. Declaración de estimaciones. Con "Aportar conocimiento del modelo" encendido,
+        //    el documento incorpora marco técnico del sector que NO viene de los archivos
+        //    del cliente. La prueba de contraste mostró que el modelo lo declara por su
+        //    cuenta ("los umbrales son ejemplos técnicos de referencia"), pero por criterio
+        //    propio y no porque el sistema lo exija — y eso no se sostiene solo.
+        //
+        //    CRITICAL, a diferencia de los avisos del catálogo: acá el reintento pide
+        //    AGREGAR una declaración, no reescribir el análisis. Es aditivo, no distorsiona
+        //    el contenido, y el loop está acotado por maxValidationRetries.
+        if ($aportaConocimiento && !$this->declaraEstimaciones($output)) {
+            $violations[] = [
+                'type' => 'missing_estimation_disclosure',
+                'severity' => 'critical',
+                'detail' => 'El permiso de conocimiento del modelo está activo y la salida no distingue '
+                    . 'la información proporcionada de la derivada o estimada.',
+            ];
+        }
+
         $valid = empty(array_filter($violations, fn($v) => $v['severity'] === 'critical'));
 
         return [
@@ -120,6 +146,30 @@ class OutputValidatorService
             ],
             'feedback_for_ai' => $this->buildFeedbackForAI($violations, $limits, $wordCount),
         ];
+    }
+
+    /**
+     * ¿La salida declara en algún lado que parte del contenido es aportado o estimado?
+     *
+     * El vocabulario sale de dos fuentes reales, no de lo que suena bien: lo que el
+     * modelo efectivamente escribió en la prueba de contraste ("ejemplos técnicos de
+     * referencia", "de carácter general") y los términos del propio prompt del cliente
+     * ("información proporcionada, derivada y estimada").
+     *
+     * LÍMITE CONOCIDO: verifica que la distinción EXISTA, no que cada cifra esté
+     * etiquetada. Saber si un número puntual salió de la entrada o del modelo exige
+     * comparar contra la entrada, y eso no es determinístico. Esto es un piso —evita
+     * el documento que presenta todo como dato verificado—, no un techo. "De
+     * referencia" también matchea "marco de referencia": preferimos el falso negativo
+     * ocasional antes que reintentos por una frase legítima.
+     */
+    private function declaraEstimaciones(string $output): bool
+    {
+        return (bool) preg_match(
+            '/(estimad[oa]s?|estimaci[oó]n(?:es)?|supuestos?|de referencia|'
+            . 'car[aá]cter general|conocimiento general|orientativ[oa]s?)/iu',
+            $output
+        );
     }
 
     /**
@@ -317,6 +367,15 @@ class OutputValidatorService
             }
             if ($v['type'] === 'filler_phrase') {
                 $lines[] = "- {$v['detail']}. Reescribí en lenguaje técnico directo, sin justificaciones ni proyecciones.";
+            }
+            if ($v['type'] === 'missing_estimation_disclosure') {
+                // Deliberadamente ADITIVO: pedirle que reescriba el análisis para agregar
+                // una nota lo haría cambiar contenido que ya estaba bien.
+                $lines[] = "- {$v['detail']} AGREGÁ esa distinción —alcanza con una nota al pie de "
+                    . "las tablas o un párrafo de cierre— indicando qué información es "
+                    . "proporcionada por los documentos de entrada, cuál es derivada de ellos y "
+                    . "cuál es estimada o de referencia general del sector. NO modifiques el "
+                    . "análisis ya escrito: solo sumá la declaración.";
             }
         }
 

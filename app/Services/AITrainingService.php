@@ -643,9 +643,19 @@ TEXTO;
      * 1) reglas explícitas del prompt/admin;
      * 2) similitud contra los archivos de salida del entrenamiento.
      */
-    protected function validateGeneratedOutput(string $generatedContent, ?string $customPrompt, iterable $similarityReferences, array $expectations = []): array
-    {
-        $promptValidation = $this->validator->validate($generatedContent, $customPrompt, $expectations);
+    protected function validateGeneratedOutput(
+        string $generatedContent,
+        ?string $customPrompt,
+        iterable $similarityReferences,
+        array $expectations = [],
+        bool $aportaConocimiento = false
+    ): array {
+        $promptValidation = $this->validator->validate(
+            $generatedContent,
+            $customPrompt,
+            $expectations,
+            $aportaConocimiento
+        );
         $similarityValidation = $this->similarityJudge()->judge($generatedContent, $similarityReferences);
 
         return $this->mergeValidationResults($promptValidation, $similarityValidation);
@@ -895,7 +905,7 @@ TEXTO;
                     ];
                 }
 
-                $validation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
+                $validation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations, $usaConocimientoModelo);
                 $validationHistory[] = [
                     'attempt' => $attempt + 1,
                     'valid' => $validation['valid'],
@@ -929,7 +939,7 @@ TEXTO;
             if ($sanitized) {
                 Log::info("Saneo final aplicado: palabras prohibidas removidas a nivel código.");
                 $generatedContent = $sanitizedContent;
-                $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
+                $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations, $usaConocimientoModelo);
             }
 
             // Truncado determinístico final por límite de palabras. Los LLMs no cuentan
@@ -946,7 +956,7 @@ TEXTO;
                     Log::info("Truncado final aplicado: contenido cortado al límite de {$wordLimits['max']} palabras.");
                     $generatedContent = $truncatedContent;
                     $truncated = true;
-                    $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations);
+                    $finalValidation = $this->validateGeneratedOutput($generatedContent, $customPrompt, $similarityReferences, $catalogExpectations, $usaConocimientoModelo);
                 }
             }
 
