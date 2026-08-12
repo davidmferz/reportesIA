@@ -120,6 +120,61 @@
                         </div>
                     </div>
 
+                    {{-- Instrucciones del proyecto. El cliente escribió un prompt correctivo
+                         para su segunda prueba, creyó haberlo aplicado y el motor nunca lo
+                         recibió: el campo vive en otra pantalla ("Gestión de Archivos") y un
+                         tipo recién creado arranca vacío sin que nada lo señale. Esta pantalla
+                         se veía IDÉNTICA con y sin instrucciones. El aviso va acá, en el
+                         instante anterior a generar, que es donde efectivamente falló. Se
+                         resuelve por contenido (trim) y no por null: un prompt de espacios no
+                         le dice nada a la IA. --}}
+                    @php $instruccionesProyecto = trim((string) $reportType->prompt); @endphp
+
+                    @if ($instruccionesProyecto === '')
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-hando p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    {{-- text-amber-800 y no -600: el deploy es pull + view:clear,
+                                         sin rebuild de assets, así que una clase que no exista ya
+                                         en el CSS compilado sale sin color. --}}
+                                    <svg class="h-5 w-5 text-amber-800 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-amber-900 dark:text-amber-100">
+                                        Este tipo de reporte <strong>no tiene instrucciones cargadas</strong>.
+                                        La IA va a guiarse solo por los ejemplos de entrenamiento.
+                                    </p>
+                                    <a href="{{ route('admin.report-files.prompt', $reportType) }}"
+                                       class="mt-1 inline-flex items-center text-sm font-medium text-amber-800 dark:text-amber-200 underline hover:no-underline">
+                                        Cargar instrucciones
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="bg-hando-gray-50 dark:bg-hando-gray-800 border border-hando-gray-300 dark:border-hando-gray-700 rounded-hando p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-hando-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-hando-gray-700 dark:text-hando-gray-300">
+                                        <strong>Instrucciones del proyecto cargadas</strong>
+                                        &middot; {{ number_format(mb_strlen($instruccionesProyecto)) }} caracteres
+                                    </p>
+                                    <a href="{{ route('admin.report-files.prompt', $reportType) }}"
+                                       class="mt-1 inline-flex items-center text-sm font-medium text-hando-primary underline hover:no-underline">
+                                        Ver o editar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
                     <!-- Selección de Capítulo -->
                     <div class="space-y-2">
                         <label for="chapter_id" class="block text-sm font-medium text-hando-text-light dark:text-hando-text-dark">
