@@ -298,11 +298,17 @@ PROMPT;
     {
         $customPromptSection = '';
         if (!empty($customPrompt)) {
+            // El alcance viejo ("si alguna regla posterior del maestro las contradice")
+            // dejaba afuera el conflicto real que el cliente documentó en su informe de
+            // prueba: lo que arrastra estructura, títulos y apartados no es una regla,
+            // es el CASO DE REFERENCIA del few-shot. La autoridad tiene que nombrarlo
+            // o no cubre el caso.
             $customPromptSection = <<<CUSTOM
 
 ## INSTRUCCIONES DEL USUARIO (PRIORIDAD MÁXIMA)
-Estas instrucciones son la PRIMERA ley. Si alguna regla posterior del maestro las
-contradice, GANAN estas instrucciones. No las amplíes ni las interpretes.
+Estas instrucciones son la PRIMERA ley. Si algo las contradice —una regla posterior de
+este documento, o la estructura, los títulos, los apartados o el formato del CASO DE
+REFERENCIA— GANAN estas instrucciones. No las amplíes ni las interpretes.
 
 {$customPrompt}
 
@@ -503,16 +509,77 @@ TEXTO;
                     . "### DOCUMENTO FINAL GENERADO\n\n"
                     . ($example['output'] ?? ''),
             ];
+            // Este turno es andamiaje NUESTRO, no texto del cliente, y es la señal de
+            // dirección más fuerte del stack: lo que el modelo se dice a sí mismo pesa
+            // más que cualquier system. La versión anterior le hacía prometer "qué
+            // estructura, títulos [...] utiliza. Lo aplicaré", contradiciendo la Fase 1
+            // del propio maestro ("No debes copiar literalmente el contenido. Debes
+            // aprender el patrón de transformación"). Ahora solo acusa recibo del
+            // aprendizaje: quién gobierna la Fase 2 es el system prompt, no este turno.
             $messages[] = [
                 'role' => 'assistant',
-                'content' => "Comprendido. Aprendí el patrón de transformación de este caso de referencia "
-                    . "(Fase 1): qué información se extrae, descarta y resume, qué conclusiones se generan, "
-                    . "y qué estructura, títulos, tablas, listas, tono y longitud utiliza. Lo aplicaré al "
-                    . "generar el nuevo documento (Fase 2).",
+                'content' => "Comprendido. Analicé este caso de referencia (Fase 1) y registré su patrón "
+                    . "de transformación: qué información se extrae de los documentos de entrada, qué se "
+                    . "descarta, qué se resume, qué conclusiones se generan y cómo redacta el consultor. "
+                    . "No copiaré literalmente su contenido. Quedo a la espera de la nueva entrada para "
+                    . "aplicar ese patrón en la Fase 2.",
             ];
         }
 
         return $messages;
+    }
+
+    /**
+     * Mensaje `user` final: el que cierra el prompt y, por recencia, el que más pesa.
+     *
+     * Antes repetía la Fase 2 del maestro completa ("la misma estructura, los mismos
+     * títulos, el mismo orden..."). Esa regla YA vive entera en el system prompt:
+     * repetirla acá solo le daba la última palabra a la instrucción que el prompt del
+     * cliente contradice —el conflicto que el cliente documentó en su informe de
+     * prueba, donde su prompt correctivo "fue leído pero perdió"—. Ahora delega en el
+     * system, que es donde la jerarquía se declara junto a las instrucciones del usuario.
+     *
+     * También se elimina de acá el desempate estrecho ("si contradicen el FORMATO del
+     * caso de referencia"): el conflicto real es de estructura y de reglas de contenido,
+     * así que la cláusula no cubría el caso. La autoridad se declara una sola vez, en
+     * buildStandardSystemPrompt().
+     *
+     * La cláusula de fuente NO se toca: depende de usa_conocimiento_modelo y de la regla
+     * "Nunca inventes datos", que es texto verbatim del cliente.
+     */
+    protected function buildGenerationUserMessage(
+        string $inputContent,
+        bool $modoEstricto,
+        bool $usaConocimientoModelo,
+        bool $tieneEjemplos
+    ): string {
+        if ($modoEstricto) {
+            $clausulaConocimiento = $usaConocimientoModelo
+                ? "Podés enriquecer con tu conocimiento experto del dominio, sin inventar datos específicos del cliente."
+                : "No incorpores conocimiento externo.";
+
+            return "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
+                . "Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS "
+                . "del system prompt. No uses formato de ejemplos previos. No agregues "
+                . "secciones no solicitadas. {$clausulaConocimiento}";
+        }
+
+        if ($tieneEjemplos) {
+            $clausulaFuente = $usaConocimientoModelo
+                ? "Usá los siguientes datos como fuente de los HECHOS específicos del cliente (cifras, nombres, "
+                    . "fechas) y COMPLEMENTÁ con tu conocimiento experto del dominio para enriquecer el desarrollo; "
+                    . "no inventes datos del cliente que no estén acá."
+                : "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
+                    . "fechas, hechos); no inventes nada que no esté acá.";
+
+            return "## NUEVOS DOCUMENTOS DE ENTRADA (Fase 2)\n\n"
+                . "Generá el documento nuevo aplicando las instrucciones del system prompt sobre esta "
+                . "entrada, respetando la jerarquía de prioridades allí declarada. {$clausulaFuente}\n\n"
+                . "{$inputContent}";
+        }
+
+        return "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
+            . "Generá la salida siguiendo las instrucciones del system prompt.";
     }
 
     /**
@@ -758,35 +825,12 @@ TEXTO;
         $messages = array_merge($messages, $this->buildReferenceExampleMessages($examples));
 
         // Agregar el nuevo input del usuario
-        if ($modoEstricto) {
-            $clausulaConocimiento = $usaConocimientoModelo
-                ? "Podés enriquecer con tu conocimiento experto del dominio, sin inventar datos específicos del cliente."
-                : "No incorpores conocimiento externo.";
-            $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
-                . "Generá la salida siguiendo EXCLUSIVAMENTE las INSTRUCCIONES OBLIGATORIAS "
-                . "del system prompt. No uses formato de ejemplos previos. No agregues "
-                . "secciones no solicitadas. {$clausulaConocimiento}";
-        } elseif (!empty($examples)) {
-            $clausulaFuente = $usaConocimientoModelo
-                ? "Usá los siguientes datos como fuente de los HECHOS específicos del cliente (cifras, nombres, "
-                    . "fechas) y COMPLEMENTÁ con tu conocimiento experto del dominio para enriquecer el desarrollo; "
-                    . "no inventes datos del cliente que no estén acá."
-                : "Usá EXCLUSIVAMENTE los siguientes datos como fuente de información (cifras, nombres, "
-                    . "fechas, hechos); no inventes nada que no esté acá.";
-            // Fase 2 del maestro: replicar estructura, títulos, orden, detalle y estilo
-            // del CASO DE REFERENCIA sobre la nueva entrada — no solo "parecerse a la salida".
-            $userMessage = "## NUEVOS DOCUMENTOS DE ENTRADA (Fase 2)\n\n"
-                . "Generá el documento nuevo siguiendo exactamente la misma estructura, los mismos "
-                . "títulos, el mismo orden, el mismo nivel de detalle, el mismo estilo de escritura, "
-                . "el mismo tipo de conclusiones, el mismo formato de tablas y el mismo formato de "
-                . "numeración que el CASO DE REFERENCIA. {$clausulaFuente} Si las instrucciones del "
-                . "usuario en el system prompt contradicen el formato del caso de referencia, "
-                . "PRIORIZÁ las instrucciones del usuario.\n\n"
-                . "{$inputContent}";
-        } else {
-            $userMessage = "## ENTRADA A PROCESAR\n\n{$inputContent}\n\n---\n"
-                . "Generá la salida siguiendo las instrucciones del system prompt.";
-        }
+        $userMessage = $this->buildGenerationUserMessage(
+            $inputContent,
+            $modoEstricto,
+            $usaConocimientoModelo,
+            !empty($examples)
+        );
 
         $messages[] = [
             'role' => 'user',
